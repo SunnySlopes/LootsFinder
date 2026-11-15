@@ -1,0 +1,67 @@
+# --- build output -------------------------------------------------------------
+build/
+build-*/
+cmake-build-*/
+out/
+.cache/
+CMakeUserPresets.json
+
+# --- IDE ----------------------------------------------------------------------
+.idea/
+.vs/
+.vscode/
+*.iml
+
+# --- compiler / linker artefacts ---------------------------------------------
+*.obj
+*.o
+*.a
+*.lib
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.exp
+
+# --- python tooling -----------------------------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+verify_py/
+
+# --- non-shipping material ----------------------------------------------------
+# Docs, coordinate-comparison fixtures, extraction/query tools and prebuilt
+# binaries are development-only. They stay on the author's disk but are not part
+# of the library/build output.
+docs/
+# Development-only tests and extraction/query tools: never ship/package them.
+/tests/
+/tools/
+bin/
+bins/
+
+# --- generated vanilla data ---------------------------------------------------
+# Headers that the library compiles are tracked: a fresh checkout must build
+# without a Minecraft jar. Regenerate with tools/extract_*.py when needed.
+#
+# data/chest_layouts.hpp     (compiled: ancient city / bastion / outpost / ...)
+# data/jigsaw_templates.hpp  (compiled: jigsaw assembly)
+# data/loot_tables.hpp       (compiled: loot-table replay)
+# data/enchantments.hpp      (compiled: enchant_randomly)
+# data/*.hpp                 (other compiled structure tables)
+
+# Reference dumps that no translation unit includes.
+data/end_city_layouts.h
+data/end_city_layouts.hpp
+data/suspicious_layouts.hpp
+
+# --- local structure dumps ----------------------------------------------------
+data/structure/
+structure/
+external/structure/
+
+# --- scratch ------------------------------------------------------------------
+*.log
+*.tmp
