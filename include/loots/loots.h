@@ -2,7 +2,7 @@
 //
 // Scope: this module answers "what is *inside* a structure", never "where is the
 // structure". Structure positions, biomes, noise and surface height stay in
-// cubiomes; anything this module needs from there is injected by the caller.
+// cubiomes; anything this module needs from there is supplied by its own worldgen module.
 //
 // Currently owned by this module:
 //   - ancient city: loot tier per version, per-chest evaluation (M0 skeleton)
@@ -108,20 +108,7 @@ struct AncientCityPiece {
     int rotation = 0; // 0..3 = N / E / S / W (Rotation.getRandom order)
 };
 
-/**
- * The ancient-city piece graph is owned by the host's layout engine (the same
- * 26.3 engine that drives the geode finder). LootsFinder only turns the placed
- * templates into chest positions, so the engine is injected here instead of
- * adding a hard dependency on the host's terrain code.
- *
- * Returns false when the city does not exist (or the version is unsupported).
- */
-using AncientCityLayoutFn = bool (*)(int mc, uint64_t seed, int x, int z,
-                                     std::vector<AncientCityPiece> &out);
-
-/** Install (or clear with nullptr) the ancient-city layout provider. */
-void ancientCitySetLayoutProvider(AncientCityLayoutFn fn);
-
+/** Evaluate every ancient city in `cities` using loots' built-in layout. */
 std::vector<CityChestInfo> ancientCityChests(int mc, uint64_t seed, uint32_t flags,
                                              const std::vector<std::pair<int, int>> &cities);
 

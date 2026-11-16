@@ -9,8 +9,6 @@
 
 #ifdef LOOTS_HAS_GEODE
 #include "structure_layout/layout.hpp"
-#include "terrain.hpp"
-#include "loots/trail_ruins.h"
 #include "jigsaw_templates.hpp"
 #include "loots/loot.h"
 #include "loots/rng.h"
@@ -22,12 +20,6 @@ namespace loots {
 namespace cli {
 namespace {
 
-std::unique_ptr<geode::Terrain> gTrailTerrain;
-int trailTerrainHeight(int, uint64_t, int x, int z)
-{
-    return gTrailTerrain ? gTrailTerrain->height_world_surface(x, z) : 64;
-}
-
 const loots::data::TemplateInfo *findLayout(const std::string &name)
 {
     for (const auto &t : loots::data::kTemplateInfos)
@@ -36,18 +28,6 @@ const loots::data::TemplateInfo *findLayout(const std::string &name)
 }
 
 } // namespace
-
-void installTrailTerrainHeight(uint64_t seed)
-{
-    gTrailTerrain = std::make_unique<geode::Terrain>(seed, 1);
-    trailRuinsSetSurfaceHeightProvider(trailTerrainHeight);
-}
-
-void clearTrailTerrainHeight()
-{
-    gTrailTerrain.reset();
-    trailRuinsSetSurfaceHeightProvider(nullptr);
-}
 
 std::vector<StructureChest> ancientCityChestsGeode(int mc, uint64_t seed, int x, int z,
                                                     int &piecesOut)
@@ -128,8 +108,6 @@ int cmdAncientGeode(int mc, uint64_t seed, int x, int z)
 #else
 namespace loots::cli {
 
-void installTrailTerrainHeight(uint64_t) {}
-void clearTrailTerrainHeight() {}
 
 std::vector<StructureChest> ancientCityChestsGeode(int, uint64_t, int, int, int &piecesOut)
 {

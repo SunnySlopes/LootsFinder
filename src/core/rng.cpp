@@ -48,7 +48,7 @@ int32_t worldgenNextInt(Xoroshiro128 &random, int bound)
     do {
         bits = worldgenNextBits(random, 31);
         val = bits % bound;
-    } while (bits - val + (bound - 1) < 0);
+    } while (int64_t(bits) - val + (bound - 1) > INT32_MAX);
     return val;
 }
 
@@ -75,7 +75,7 @@ int32_t LegacyRandom::nextInt(int bound)
     do {
         bits = next(31);
         val = bits % bound;
-    } while (bits - val + (bound - 1) < 0);
+    } while (int64_t(bits) - val + (bound - 1) > INT32_MAX);
     return val;
 }
 

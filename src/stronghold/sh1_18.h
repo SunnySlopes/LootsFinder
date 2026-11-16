@@ -1,11 +1,9 @@
 /*
  * sh1_18.h — stronghold End portal + layout simulation for Minecraft 1.18+.
  *
- * This module is embedded in the geode submodule and is intentionally
- * self-contained: geode's cubiomes snapshot ships only the biomes/noise half
- * (no finders.c, no features/), so everything stronghold-specific lives here
- * rather than in cubiomes. It needs nothing from cubiomes beyond the biome
- * generator that geode already links.
+ * This copy is vendored in the loots submodule and is intentionally
+ * self-contained: it needs nothing from cubiomes beyond the biome generator
+ * supplied by the caller. Its public wrapper is include/loots/stronghold.h.
  *
  * Scope: 1.18 through the newest version geode knows. Older versions are
  * rejected on purpose — geode's terrain model starts at 1.18, and this module

@@ -88,7 +88,7 @@ public:
         do {
             b = int(bits(31));
             r = b % bound;
-        } while (b - r + (bound - 1) < 0);
+        } while (int64_t(b) - r + (bound - 1) > INT32_MAX);
         return r;
     }
 

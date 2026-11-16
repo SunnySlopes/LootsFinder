@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "loots/rng.h"
+#include "loots/worldgen.h"
 #include "loots/transform.h"
 #include "pieces_c.h"
 #include "trail_ruins.hpp"
@@ -238,45 +239,16 @@ bool canAttach(const JigRuntime &source, const JigRuntime &target)
            sameName(source.target, target.name);
 }
 
-/** a \ b, split into at most six disjoint boxes. */
-void subtractBox(const Box &a, const Box &b, std::vector<Box> &out)
-{
-    if (!a.intersects(b)) {
-        out.push_back(a);
-        return;
-    }
-    if (a.minX < b.minX) out.push_back({a.minX, a.minY, a.minZ, b.minX - 1, a.maxY, a.maxZ});
-    if (a.maxX > b.maxX) out.push_back({b.maxX + 1, a.minY, a.minZ, a.maxX, a.maxY, a.maxZ});
-    const int x0 = std::max(a.minX, b.minX);
-    const int x1 = std::min(a.maxX, b.maxX);
-    if (a.minY < b.minY) out.push_back({x0, a.minY, a.minZ, x1, b.minY - 1, a.maxZ});
-    if (a.maxY > b.maxY) out.push_back({x0, b.maxY + 1, a.minZ, x1, a.maxY, a.maxZ});
-    const int y0 = std::max(a.minY, b.minY);
-    const int y1 = std::min(a.maxY, b.maxY);
-    if (a.minZ < b.minZ) out.push_back({x0, y0, a.minZ, x1, y1, b.minZ - 1});
-    if (a.maxZ > b.maxZ) out.push_back({x0, y0, b.maxZ + 1, x1, y1, a.maxZ});
-}
-
-/** True when `target` is fully covered by the union of `boxes`. */
-bool covered(const Box &target, const std::vector<Box> &boxes)
-{
-    std::vector<Box> pending;
-    pending.push_back(target);
-    for (const Box &b : boxes) {
-        std::vector<Box> next;
-        next.reserve(pending.size() * 3);
-        for (const Box &p : pending) subtractBox(p, b, next);
-        pending.swap(next);
-        if (pending.empty()) return true;
-        if (pending.size() > 4096) return false; // runaway guard; should not happen for trail ruins
-    }
-    return pending.empty();
-}
-
 struct FreeCtx {
-    bool global = false;
     Box aabb;
-    std::vector<Box> boxes;
+    std::vector<Box> occupied;
+
+    bool fits(const Box &candidate) const
+    {
+        if (!aabb.contains(candidate)) return false;
+        return std::none_of(occupied.begin(), occupied.end(),
+                            [&](const Box &current) { return current.intersects(candidate); });
+    }
 };
 
 struct Piece {
@@ -294,24 +266,11 @@ struct State {
     int depth = 0;
 };
 
-TrailSurfaceHeightFn g_heightFn = nullptr;
-bool g_usedApproxHeight = true;
-
-int surfaceHeight(int mc, uint64_t seed, int x, int z)
-{
-    if (g_heightFn) {
-        g_usedApproxHeight = false;
-        return g_heightFn(mc, seed, x, z);
-    }
-    g_usedApproxHeight = true;
-    return loots_surface_height(mc, seed, x, z);
-}
-
 class Placer {
 public:
     Placer(int mc, uint64_t seed) : mc_(mc), seed_(seed) {}
 
-    bool run(int startX, int startZ, StructureLoot &out)
+    bool run(int startX, int startZ, bool collectLoot, StructureLoot &out)
     {
         LegacyRandom rng(static_cast<uint64_t>(largeFeatureSeedValue(mc_, seed_, startX >> 4, startZ >> 4)));
         const int centerRot = rng.nextInt(4); // Rotation.getRandom
@@ -323,21 +282,19 @@ public:
         Box centerBox = templateBox3(centerPos, centerRot, centerTmpl);
         const int centerX = (centerBox.minX + centerBox.maxX) / 2;
         const int centerZ = (centerBox.minZ + centerBox.maxZ) / 2;
-        const int bottomY = surfaceHeight(mc_, seed_, centerX, centerZ) - 1;
+        const int bottomY = loots::worldSurfaceHeight(mc_, seed_, centerX, centerZ) + kStartY;
         const int oldAbsGroundY = centerBox.minY + 1; // SinglePoolElement GROUND_LEVEL_DELTA
         const int dy = bottomY - oldAbsGroundY;
         centerPos.y += dy;
         centerBox = centerBox.moved(0, dy, 0);
 
-        global_.global = true;
         global_.aabb = {centerX - kMaxDistance,
                         std::max(bottomY - kMaxDistance, kWorldMinY),
                         centerZ - kMaxDistance,
                         centerX + kMaxDistance,
                         std::min(bottomY + kMaxDistance, kWorldMaxY),
                         centerZ + kMaxDistance};
-        global_.boxes.clear();
-        global_.boxes.push_back(centerBox);
+        global_.occupied.push_back(centerBox);
 
         Piece center;
         center.tmpl = centerTmpl;
@@ -372,7 +329,7 @@ public:
             out.maxX = std::max(out.maxX, p.box.maxX);
             out.maxY = std::max(out.maxY, p.box.maxY);
             out.maxZ = std::max(out.maxZ, p.box.maxZ);
-            collectSuspicious(p, out);
+            if (collectLoot) collectSuspicious(p, out);
         }
         return true;
     }
@@ -383,23 +340,9 @@ private:
         queue_[priority].push_back(s);
     }
 
-    bool isFree(int ctx, const Box &b) const
+    FreeCtx &freeContext(int index)
     {
-        if (ctx < 0) {
-            if (!global_.aabb.contains(b)) return false;
-            for (const Box &placed : global_.boxes)
-                if (placed.intersects(b)) return false;
-            return true;
-        }
-        return covered(b, localCtxs_[static_cast<size_t>(ctx)].boxes);
-    }
-
-    void addToCtx(int ctx, const Box &b)
-    {
-        if (ctx < 0)
-            global_.boxes.push_back(b);
-        else
-            localCtxs_[static_cast<size_t>(ctx)].boxes.push_back(b);
+        return index < 0 ? global_ : localCtxs_[static_cast<size_t>(index)];
     }
 
     void tryPlacing(int pieceIndex, int ctxIndex, int depth, LegacyRandom &rng)
@@ -428,10 +371,7 @@ private:
             int childCtx = ctxIndex;
             if (sourceBB.contains(targetJigsawPos)) {
                 if (pieces_[static_cast<size_t>(pieceIndex)].localCtx < 0) {
-                    FreeCtx c;
-                    c.global = false;
-                    c.boxes.push_back(sourceBB);
-                    localCtxs_.push_back(std::move(c));
+                    localCtxs_.push_back({sourceBB, {}});
                     pieces_[static_cast<size_t>(pieceIndex)].localCtx =
                         static_cast<int>(localCtxs_.size()) - 1;
                 }
@@ -459,7 +399,7 @@ private:
                         const int yOffset = targetBoxY - rawTargetBB.minY;
                         const Box targetBB = rawTargetBB.moved(0, yOffset, 0);
 
-                        if (!isFree(childCtx, targetBB)) continue;
+                        if (!freeContext(childCtx).fits(targetBB)) continue;
 
                         Piece child;
                         child.tmpl = targetTmpl;
@@ -470,7 +410,7 @@ private:
                         child.groundDelta = source.groundDelta - deltaY;
                         const int childIndex = static_cast<int>(pieces_.size());
                         pieces_.push_back(child);
-                        addToCtx(childCtx, targetBB);
+                        freeContext(childCtx).occupied.push_back(targetBB);
                         if (depth + 1 <= kMaxDepth)
                             enqueue({childIndex, childCtx, depth + 1}, sj.placePriority);
                         attached = true;
@@ -575,47 +515,15 @@ private:
 
 } // namespace
 
-void trailRuinsSetSurfaceHeightProvider(TrailSurfaceHeightFn fn)
-{
-    g_heightFn = fn;
-}
-
-TrailRuinsStatus trailRuinsStatus()
-{
-    TrailRuinsStatus s;
-    s.complete = false;
-    s.exactSurfaceHeight = g_heightFn != nullptr;
-    s.templateData = true;
-    s.hasChests = false;
-    if (g_heightFn)
-        s.missing = "in-game oracle verification; archaeology/trail_ruins_common loot table "
-                    "is not in data/loot_tables.hpp";
-    else
-        s.missing = "exact WORLD_SURFACE_WG height (install TrailSurfaceHeightFn); in-game "
-                    "oracle verification; archaeology/trail_ruins_common loot table is not in "
-                    "data/loot_tables.hpp";
-    return s;
-}
-
 bool trailRuinsLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out)
 {
     out = StructureLoot{};
     out.x = x;
     out.z = z;
     out.kind = "trail_ruins";
-    // The template layout is stable from 1.20 onward; only the archaeology
-    // loot-table band changes, and that is selected by `mc` during evaluation.
-    if (mc < 25) return false;
-    if (sizeof(data::kTrailTemplates) == 0) return false;
-
+    if (mc < 25 || mc > 35) return false;
     Placer placer(mc, seed);
-    const int chunkX = floorDiv(x, 16);
-    const int chunkZ = floorDiv(z, 16);
-    if (!placer.run(chunkX * 16, chunkZ * 16, out)) {
-        out.exists = false;
-        return false;
-    }
-    return true;
+    return placer.run(floorDiv(x, 16) * 16, floorDiv(z, 16) * 16, true, out);
 }
 
 } // namespace loots

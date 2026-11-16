@@ -52,11 +52,11 @@ bool pillagerOutpostLoot(int mc, uint64_t seed, int x, int z, OutpostLoot &out)
     const outpost_detail::Assembly as = outpost_detail::assembleOutpost(mc, seed, x, z);
     if (!as.exists || as.pieces.empty()) return false;
     out.exists = true;
-    // The feature-pool expansion is only meaningful with a real
-    // WORLD_SURFACE_WG height. Without a provider (e.g. the standalone oracle
-    // test) keep the verified default of "no allay" rather than guessing from
-    // the 1:4 fallback.
-    out.hasAllay = outpost_detail::outpostHasSurfaceHeightProvider() && as.hasAllay;
+    out.allayEvaluated = mc <= 35;
+    if (out.allayEvaluated && mc >= 23) {
+        out.allayCages = as.allayCages;
+        out.hasAllay = out.allayCages > 0;
+    }
 
     std::map<std::pair<int, int>, PostProcessRandom> postRngs;
     std::set<std::pair<int, int>> seenChests;
@@ -95,8 +95,8 @@ bool pillagerOutpostLoot(int mc, uint64_t seed, int x, int z, OutpostLoot &out)
             loots::templateTransform(c.x, c.z, loots::Mirror::none,
                                      loots::rotationByIndex(startRot), 0, 0, ox, oz);
             StructureChest chest{};
-            chest.x = x + ox;
-            chest.z = z + oz;
+            chest.x = as.pieces[0].x + ox;
+            chest.z = as.pieces[0].z + oz;
             chest.templateName = "pillager_outpost/watchtower";
             chest.lootTable = c.table;
             PostProcessRandom rng(mc, loots_structure_loot_seed(mc, seed, chest.x, chest.z, 10));
@@ -112,11 +112,6 @@ bool pillagerOutpostLoot(int mc, uint64_t seed, int x, int z, OutpostLoot &out)
     (void)z;
     return false;
 #endif
-}
-
-void outpostSetSurfaceHeightProvider(OutpostSurfaceHeightFn fn)
-{
-    outpost_detail::outpostSetSurfaceHeightProvider(fn);
 }
 
 } // namespace loots

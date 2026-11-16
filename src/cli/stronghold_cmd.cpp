@@ -1,27 +1,26 @@
-#include "sh1_18.h"
+#include "loots/stronghold.h"
 
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
 
 namespace loots {
 namespace cli {
 
 int cmdStronghold(int mc, uint64_t seed)
 {
-    if (!sh118_versionSupported(mc)) {
+    if (!strongholdVersionSupported(mc)) {
         std::fputs("stronghold requires 1.18+\n", stderr);
         return 2;
     }
-    Sh118Stronghold sh{};
-    if (!sh118_locateFirst(&sh, mc, seed, nullptr)) {
+    StrongholdPortal sh;
+    if (!strongholdFirst(mc, seed, sh)) {
         std::fputs("stronghold not found\n", stderr);
         return 1;
     }
     std::printf("{\n");
     std::printf("  \"kind\": \"stronghold\", \"mc\": %d, \"seed\": %lld,\n", mc, (long long) seed);
     std::printf("  \"start\": {\"x\": %d, \"z\": %d, \"chunkX\": %d, \"chunkZ\": %d},\n",
-                sh.startX, sh.startZ, sh.chunkX, sh.chunkZ);
+                sh.x, sh.z, sh.chunkX, sh.chunkZ);
     std::printf("  \"portal\": {\"x\": %d, \"z\": %d, \"minX\": %d, \"maxX\": %d, "
                 "\"minZ\": %d, \"maxZ\": %d},\n",
                 sh.portalX, sh.portalZ, sh.frameMinX, sh.frameMaxX, sh.frameMinZ, sh.frameMaxZ);

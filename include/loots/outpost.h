@@ -15,22 +15,20 @@
 
 namespace loots {
 
-/** Exact WORLD_SURFACE_WG height provider (block Y of the first free block). */
-using OutpostSurfaceHeightFn = int (*)(int mc, uint64_t seed, int x, int z);
-
-/** Install (or clear with nullptr) the exact height provider. */
-void outpostSetSurfaceHeightProvider(OutpostSurfaceHeightFn fn);
-
 struct OutpostLoot {
     bool exists = false;
-    /** A `feature_cage_with_allays` piece was placed (1.19+). */
+    /** A `feature_cage_with_allays` piece was placed (1.19+). Available for 1.19+; allayEvaluated is true when the built-in height query is available. */
     bool hasAllay = false;
     /** False while the outpost post-process RNG is still approximate. */
     bool lootSeedExact = false;
     /** Trophy chests inside placed towers (prompt-only layer: coords not drawn). */
     std::vector<StructureChest> chests;
+    /** True when the game version has no Allays or the built-in exact height was used. */
+    bool allayEvaluated = false;
+    int allayCages = 0;
 };
 
+/** x/z identify a start chunk already found by the caller's structure locator. */
 bool pillagerOutpostLoot(int mc, uint64_t seed, int x, int z, OutpostLoot &out);
 
 } // namespace loots

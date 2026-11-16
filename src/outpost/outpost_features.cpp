@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -11,6 +12,7 @@
 #endif
 
 #include "loots/jigsaw_core.h"
+#include "loots/worldgen.h"
 #include "loots/transform.h"
 #include "pieces_c.h"
 
@@ -53,7 +55,7 @@ struct Pool {
 std::vector<Element> g_elements;
 std::vector<Pool> g_pools;
 std::unordered_map<std::string, int> g_poolIndex;
-bool g_ready = false;
+std::once_flag g_init;
 
 std::string stripNamespace(const char *name)
 {
@@ -85,10 +87,8 @@ int ensurePool(const std::string &name)
     return id;
 }
 
-void init()
+void initPools()
 {
-    if (g_ready) return;
-    g_ready = true;
 
     // Vanilla empty pool, used both as a real pool and as the fallback of every
     // pillager_outpost pool.
@@ -96,6 +96,7 @@ void init()
 
     for (const auto &e : data::kPoolEntries) {
         const std::string name = stripNamespace(e.pool);
+        if (!name.starts_with("pillager_outpost/")) continue;
         const int pid = ensurePool(name);
         if (name == "pillager_outpost/towers") {
             // 26.3's towers pool is a single list_pool_element (weight 1) whose
@@ -280,9 +281,6 @@ bool boxInside(const Box &outer, const Box &inner)
 
 int poolMaxSize(int poolId)
 {
-    static std::unordered_map<int, int> cache;
-    auto it = cache.find(poolId);
-    if (it != cache.end()) return it->second;
     int maxSize = 0;
     const Pool *p = poolOf(poolId);
     if (p) {
@@ -292,7 +290,6 @@ int poolMaxSize(int poolId)
             maxSize = std::max(maxSize, b.hi.y - b.lo.y + 1);
         }
     }
-    cache.emplace(poolId, maxSize);
     return maxSize;
 }
 
@@ -300,30 +297,21 @@ bool canAttach(const Jig &source, const Jig &target)
 {
     if (source.front != oppositeFacing(target.front)) return false;
     if (!source.rollable && source.top != target.top) return false;
-    if (target.name && target.name[0] && !sameName(source.target, target.name)) return false;
+    if (!sameName(source.target, target.name)) return false;
     return true;
 }
 
-OutpostSurfaceHeightFn g_surfaceHeightFn = nullptr;
+struct FreeSpace {
+    Box bounds;
+    std::vector<Box> occupied;
 
-void setSurfaceHeightProviderImpl(OutpostSurfaceHeightFn fn)
-{
-    g_surfaceHeightFn = fn;
-}
-
-int surfaceHeight(int mc, uint64_t seed, int x, int z)
-{
-    if (g_surfaceHeightFn) return g_surfaceHeightFn(mc, seed, x, z);
-    // Fallback: cubiomes' 1:4 approximation.
-    return loots_surface_height(mc, seed, x, z);
-}
-
-bool overlapsStrict(const Box &a, const Box &b)
-{
-    return a.hi.x > b.lo.x && a.lo.x < b.hi.x &&
-           a.hi.y > b.lo.y && a.lo.y < b.hi.y &&
-           a.hi.z > b.lo.z && a.lo.z < b.hi.z;
-}
+    bool fits(const Box &candidate) const
+    {
+        if (!boxInside(bounds, candidate)) return false;
+        return std::none_of(occupied.begin(), occupied.end(),
+                            [&](const Box &current) { return current.intersects(candidate); });
+    }
+};
 
 struct Piece {
     int element = -1;
@@ -332,8 +320,7 @@ struct Piece {
     Box box{};
     bool rigid = true;
     int depth = 0;
-    /** Children attached through an inside-source connector (vanilla sourceFree). */
-    std::vector<Box> insideChildren;
+    size_t freeSpace = 0;
 };
 
 struct Ctx {
@@ -341,8 +328,7 @@ struct Ctx {
     uint64_t seed = 0;
     Random rng;
     std::vector<Piece> pieces;
-    std::vector<Box> occupied;   // centre + outside-context children
-    Box maxAabb{};
+    std::vector<FreeSpace> spaces;
     std::vector<int> queue;
 
     Ctx(int mc_, uint64_t seed_, uint64_t rngSeed) : mc(mc_), seed(seed_), rng(rngSeed) {}
@@ -356,10 +342,9 @@ void expandSource(Ctx &ctx, int pieceIndex)
     const int sourceRot = ctx.pieces[size_t(pieceIndex)].rot;
     const Box sourceBox = ctx.pieces[size_t(pieceIndex)].box;
     const bool sourceRigid = ctx.pieces[size_t(pieceIndex)].rigid;
-    const Element &source = g_elements[size_t(sourceElement)];
-    const bool sourceFeaturePlate = source.kind == kSingle &&
-        std::strstr(templateInfo(source.templateIndex).name, "feature_plate") != nullptr;
     const int depth = ctx.pieces[size_t(pieceIndex)].depth;
+    const size_t contextSpace = ctx.pieces[size_t(pieceIndex)].freeSpace;
+    size_t insideSpace = 0;
 
     std::vector<Jig> sourceJigs = elementJigs(sourceElement, sourceOrigin, sourceRot);
     ctx.rng.shuffle(sourceJigs);
@@ -386,7 +371,14 @@ void expandSource(Ctx &ctx, int pieceIndex)
         const Vec3 step = stepOf(sourceJig.front);
         const Vec3 targetJigsawPos{sourceJig.pos.x + step.x, sourceJig.pos.y + step.y,
                                    sourceJig.pos.z + step.z};
-        const bool attachInsideSource = contains(sourceBox, targetJigsawPos);
+        size_t childSpace = contextSpace;
+        if (contains(sourceBox, targetJigsawPos)) {
+            if (insideSpace == 0) {
+                insideSpace = ctx.spaces.size();
+                ctx.spaces.push_back({sourceBox, {}});
+            }
+            childSpace = insideSpace;
+        }
 
         bool attached = false;
 #ifndef NDEBUG
@@ -432,7 +424,7 @@ void expandSource(Ctx &ctx, int pieceIndex)
                     const int targetBoxY =
                         (sourceRigid && targetRigid)
                             ? rawOrigin.y
-                            : surfaceHeight(ctx.mc, ctx.seed, sourceJig.pos.x, sourceJig.pos.z) -
+                            : loots::worldSurfaceHeight(ctx.mc, ctx.seed, sourceJig.pos.x, sourceJig.pos.z) -
                                   tj.pos.y;
                     const int yOffset = targetBoxY - targetBox.lo.y;
                     targetBox.lo.y += yOffset;
@@ -442,51 +434,16 @@ void expandSource(Ctx &ctx, int pieceIndex)
 
                     if (expandTo > 0) {
                         const int newSize =
-                            std::max(expandTo + 1, targetBox.hi.y - targetBox.lo.y + 1);
+                            std::max(expandTo + 1, targetBox.hi.y - targetBox.lo.y);
                         if (targetBox.lo.y + newSize > targetBox.hi.y)
                             targetBox.hi.y = targetBox.lo.y + newSize;
                     }
 
-                    bool fits = false;
-                    if (sourceFeaturePlate) {
-                        fits = boxInside(ctx.maxAabb, targetBox);
-                    } else if (attachInsideSource) {
-                        // Vanilla sourceFree starts with the source BB and adds
-                        // previous inside-source children.  The child may extend
-                        // outside the source; it just may not overlap it.
-                        fits = boxInside(ctx.maxAabb, targetBox);
-                        if (fits && overlapsStrict(targetBox, sourceBox)) fits = false;
-                        if (fits) {
-                            for (const Box &other : ctx.pieces[size_t(pieceIndex)].insideChildren) {
-                                if (overlapsStrict(targetBox, other)) {
-                                    fits = false;
-                                    break;
-                                }
-                            }
-                        }
-                    } else {
-                        fits = boxInside(ctx.maxAabb, targetBox);
-                        if (fits) {
-                            for (const Box &other : ctx.occupied) {
-                                if (targetBox.intersects(other)) {
-                                    fits = false;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if (!fits) continue;
+                    if (!ctx.spaces[childSpace].fits(targetBox)) continue;
+                    ctx.spaces[childSpace].occupied.push_back(targetBox);
 #ifndef NDEBUG
                     dbgFits++;
 #endif
-
-                    if (sourceFeaturePlate) {
-                        fits = boxInside(ctx.maxAabb, targetBox);
-                    } else if (attachInsideSource) {
-                        ctx.pieces[size_t(pieceIndex)].insideChildren.push_back(targetBox);
-                    } else {
-                        ctx.occupied.push_back(targetBox);
-                    }
 
                     Piece child;
                     child.element = targetElement;
@@ -495,6 +452,7 @@ void expandSource(Ctx &ctx, int pieceIndex)
                     child.box = targetBox;
                     child.rigid = targetRigid;
                     child.depth = depth + 1;
+                    child.freeSpace = childSpace;
                     const int childIndex = int(ctx.pieces.size());
                     ctx.pieces.push_back(child);
                     if (child.depth <= kMaxDepth) ctx.queue.push_back(childIndex);
@@ -513,20 +471,12 @@ void expandSource(Ctx &ctx, int pieceIndex)
 
 } // namespace
 
-void outpostSetSurfaceHeightProvider(OutpostSurfaceHeightFn fn)
-{
-    setSurfaceHeightProviderImpl(fn);
-}
-
-bool outpostHasSurfaceHeightProvider()
-{
-    return g_surfaceHeightFn != nullptr;
-}
-
 Assembly assembleOutpost(int mc, uint64_t seed, int x, int z)
 {
     Assembly out;
-    init();
+    std::call_once(g_init, initPools);
+    x &= ~15;
+    z &= ~15;
 
     const int startPoolId = findPool("pillager_outpost/base_plates");
     const Pool *startPool = poolOf(startPoolId);
@@ -543,7 +493,7 @@ Assembly assembleOutpost(int mc, uint64_t seed, int x, int z)
     Box centerBox = elementBox(centerElement, startPos, startRot);
     const int centerX = (centerBox.lo.x + centerBox.hi.x) / 2;
     const int centerZ = (centerBox.lo.z + centerBox.hi.z) / 2;
-    const int bottomY = surfaceHeight(mc, seed, x, z) - 1;
+    const int bottomY = loots::worldSurfaceHeight(mc, seed, centerX, centerZ);
     const int dy = bottomY - (centerBox.lo.y + 1);
     Vec3 centerOrigin = startPos;
     centerOrigin.y += dy;
@@ -552,8 +502,11 @@ Assembly assembleOutpost(int mc, uint64_t seed, int x, int z)
 
     const int centerY = bottomY;
 
-    ctx.maxAabb.lo = {centerX - 80, centerY - 80, centerZ - 80};
-    ctx.maxAabb.hi = {centerX + 81, centerY + 81, centerZ + 81};
+    ctx.spaces.push_back({
+        {{centerX - 80, std::max(-64, centerY - 80), centerZ - 80},
+         {centerX + 80, std::min(319, centerY + 80), centerZ + 80}},
+        {centerBox}
+    });
 
     Piece center;
     center.element = centerElement;
@@ -563,7 +516,6 @@ Assembly assembleOutpost(int mc, uint64_t seed, int x, int z)
     center.rigid = g_elements[size_t(centerElement)].rigid;
     center.depth = 0;
     ctx.pieces.push_back(center);
-    ctx.occupied.push_back(centerBox);
     ctx.queue.push_back(0);
 
     for (size_t qi = 0; qi < ctx.queue.size(); qi++) expandSource(ctx, ctx.queue[qi]);
@@ -588,7 +540,7 @@ Assembly assembleOutpost(int mc, uint64_t seed, int x, int z)
         }
         for (size_t i = first; i < out.pieces.size(); i++) {
             if (out.pieces[i].name == "pillager_outpost/feature_cage_with_allays")
-                out.hasAllay = true;
+                ++out.allayCages;
         }
     }
     return out;

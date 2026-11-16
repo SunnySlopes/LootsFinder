@@ -16,7 +16,7 @@ The module builds two ways:
 
 This module never decides **where** a structure is. Structure positions, biomes,
 noise and surface height stay in [cubiomes](../cubiomes); whatever this module
-needs from there is injected by the caller. That keeps the module free of a
+needs from there is supplied by loots' own worldgen module. That keeps the map path free of a
 `cubiomes` dependency, so it can be built, tested and versioned on its own.
 
 | layer | owns |
@@ -160,14 +160,13 @@ python tools/verify_py/verify_loot_tables.py
 
 ## Status
 
-The host injects the ancient-city layout (26.3 geode engine) and exact surface
-height, so `ancientCityChests()` is live in the host build. The standalone CLI
-still reports `exists = false` unless it is built with Geode.
+The module owns the 26.3 ancient-city layout and exact terrain queries, so
+`ancientCityChests()` works in standalone builds.
 
 | capability | C++ library | Java 26.3 query |
 |---|---|---|
 | ocean monument sponge rooms | done | done |
-| ancient city (ward/silence/swift sneak/golden apple) | done via injected layout | done |
+| ancient city (ward/silence/swift sneak/golden apple) | done via built-in layout | done |
 | pillager outpost allay | best effort (needs exact height) | done |
 | ocean ruin sniffer egg | done for 26.3 (single-piece exact; multi-piece height approximate) | done |
 | woodland mansion vex trim | 1.19.4–26.3 coordinates match; 1.19.2 has no template/chests | done |
@@ -180,6 +179,7 @@ still reports `exists = false` unless it is built with Geode.
 | pillager outpost sentry trim | done (hint) | done |
 | shipwreck coast trim | done (hint) | done |
 | stronghold library eye trim | done (exact X/Z) | done |
+| stronghold End portal room | done (exact X/Z/Y via `strongholdPortalAt`) | done |
 
 Consumers must tolerate `exists = false` and empty result vectors. The Java
 26.3 backend is the oracle; it is not linked into the portable host.

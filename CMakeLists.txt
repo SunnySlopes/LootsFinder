@@ -86,7 +86,64 @@ add_library(loots STATIC
   src/trail_ruins/trail_ruins.cpp
   src/shipwreck/shipwreck.cpp
   src/desert_jungle/fixed_structures.cpp
+  src/stronghold/stronghold.cpp
+  src/stronghold/sh1_18.c
+  src/stronghold/vendor/stronghold_pieces.c
+  src/worldgen/worldgen.cpp
+  src/worldgen/perlin_float.cpp
+  src/worldgen/biome_bridge_stub.cpp
+  src/worldgen/geode.cpp
+  src/worldgen/terrain.cpp
+  src/worldgen/carver.cpp
+  src/worldgen/structures.cpp
+  src/worldgen/overwrites.cpp
+  src/worldgen/structure_layout/layout.cpp
+  src/worldgen/structure_layout/climate263.cpp
 )
+
+set(LOOTS_WORLDGEN_DEFS
+  "geode=loots_wg"
+  "geode_layout=loots_wg_layout"
+  "samplePerlinFloatRaw=loots_samplePerlinFloatRaw"
+  "geode_biomes_create=loots_biomes_create"
+  "geode_biomes_free=loots_biomes_free"
+  "geode_biomes_allowed=loots_biomes_allowed"
+)
+set_source_files_properties(
+  src/worldgen/worldgen.cpp
+  src/worldgen/perlin_float.cpp
+  src/worldgen/biome_bridge_stub.cpp
+  src/worldgen/geode.cpp
+  src/worldgen/terrain.cpp
+  src/worldgen/carver.cpp
+  src/worldgen/structures.cpp
+  src/worldgen/overwrites.cpp
+  src/worldgen/structure_layout/layout.cpp
+  src/worldgen/structure_layout/climate263.cpp
+  PROPERTIES COMPILE_DEFINITIONS "${LOOTS_WORLDGEN_DEFS}")
+
+# Keep loots' stronghold implementation private: another copy may coexist in
+# the host for non-map users. The public API is include/loots/stronghold.h.
+set(LOOTS_STRONGHOLD_PREFIX
+  "sh118_minVersion=loots_sh118_minVersion"
+  "sh118_versionSupported=loots_sh118_versionSupported"
+  "sh118_versionName=loots_sh118_versionName"
+  "sh118_pieceTypeName=loots_sh118_pieceTypeName"
+  "sh118_pieceTypeCode=loots_sh118_pieceTypeCode"
+  "sh118_unionArea=loots_sh118_unionArea"
+  "sh118_compute=loots_sh118_compute"
+  "sh118_locateAll=loots_sh118_locateAll"
+  "sh118_locateFirst=loots_sh118_locateFirst"
+  "sh118_listApprox=loots_sh118_listApprox"
+  "sh118_relocateApprox=loots_sh118_relocateApprox"
+  "getStrongholdPieces=loots_sh118_getStrongholdPieces"
+  "getStrongholdPiecesEx=loots_sh118_getStrongholdPiecesEx"
+  "getStrongholdLoot=loots_sh118_getStrongholdLoot"
+)
+set_source_files_properties(
+  src/stronghold/sh1_18.c
+  src/stronghold/vendor/stronghold_pieces.c
+  PROPERTIES COMPILE_DEFINITIONS "${LOOTS_STRONGHOLD_PREFIX}")
 
 target_include_directories(loots PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 # Generated vanilla data (loot tables) - implementation detail, not public.
@@ -97,6 +154,11 @@ target_include_directories(loots PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/src"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/structures"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/outpost"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/stronghold"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/worldgen"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/worldgen/data"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/worldgen/structure_layout"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/worldgen/extensions"
 )
 # Structure-piece extraction includes cubiomes headers directly.
 target_include_directories(loots PRIVATE "${LOOTS_CUBIOMES}")
@@ -117,9 +179,7 @@ if (LOOTS_BUILD_CLI)
     src/cli/main.cpp
     src/cli/verify.cpp
     src/cli/ancient_geode.cpp
-    src/cli/stronghold_cmd.cpp
-    src/stronghold/sh1_18.c
-    src/stronghold/vendor/stronghold_pieces.c)
+    src/cli/stronghold_cmd.cpp)
   target_link_libraries(loots-cli PRIVATE loots)
   target_include_directories(loots-cli PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/cli"

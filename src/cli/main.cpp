@@ -269,7 +269,7 @@ int cmdChest(const std::vector<std::string> &flags)
 }
 
 /** Shared printer for the two piece-based structures. */
-int printStructureLoot(const loots::StructureLoot &sl)
+int printStructureLoot(const loots::StructureLoot &sl, const char *suspiciousStatus = nullptr)
 {
     std::printf("{\n  \"kind\": \"%s\", \"x\": %d, \"z\": %d,\n"
                 "  \"exists\": %s, \"pieces\": %d, \"chests\": %zu,\n"
@@ -287,14 +287,17 @@ int printStructureLoot(const loots::StructureLoot &sl)
                     jsonBool(c.reward.netheriteUpgrade), c.reward.goldenApples,
                     jsonBool(c.reward.snifferEgg), i + 1 < sl.chests.size() ? "," : "");
     }
-    std::printf("  ],\n  \"suspicious\": [\n");
+    std::printf("  ],\n");
+    if (suspiciousStatus) std::printf("  \"suspiciousStatus\": \"%s\",\n", suspiciousStatus);
+    std::printf("  \"suspicious\": [\n");
     for (size_t i = 0; i < sl.suspicious.size(); i++) {
         const loots::StructureChest &c = sl.suspicious[i];
-        std::printf("    { \"x\": %d, \"z\": %d, \"template\": \"%s\", \"table\": \"%s\", "
-                    "\"lootSeed\": %lld, \"evaluated\": %s, \"approximate\": true }%s\n",
-                    c.x, c.z, c.templateName.c_str(), c.lootTable.c_str(),
-                    (long long) c.lootSeed, jsonBool(c.reward.evaluated),
-                    i + 1 < sl.suspicious.size() ? "," : "");
+        std::printf("    { \"x\": %d, \"y\": %d, \"z\": %d, \"template\": \"%s\", \"table\": \"%s\", "
+                    "\"lootSeed\": %lld, \"evaluated\": %s, \"approximate\": true, \"trimKinds\": ",
+                    c.x, c.y, c.z, c.templateName.c_str(), c.lootTable.c_str(),
+                    (long long) c.lootSeed, jsonBool(c.reward.evaluated));
+        printTrimKinds(c.reward.trimKinds);
+        std::printf(" }%s\n", i + 1 < sl.suspicious.size() ? "," : "");
     }
     std::printf("  ]\n}\n");
     return 0;
@@ -386,14 +389,12 @@ int cmdTrailRuins(const std::vector<std::string> &flags)
         std::fputs("trail-ruins needs --mc --seed --x --z\n", stderr);
         return 2;
     }
-    loots::cli::installTrailTerrainHeight(static_cast<uint64_t>(seed));
     loots::StructureLoot sl{};
     const bool ok = loots::trailRuinsLoot(static_cast<int>(mc), static_cast<uint64_t>(seed),
                                           static_cast<int>(x), static_cast<int>(z), sl);
-    loots::cli::clearTrailTerrainHeight();
     if (!ok) return 1;
     sl.evaluate(static_cast<int>(mc));
-    return printStructureLoot(sl);
+    return printStructureLoot(sl, "exact");
 }
 
 int cmdWoodlandMansion(const std::vector<std::string> &flags)
@@ -520,8 +521,10 @@ int cmdOutpost(const std::vector<std::string> &flags)
         c.reward = loots::evaluateChest(c.lootTable.c_str(), c.lootSeed, static_cast<int>(mc));
         if (c.reward.trim) hasAny = true;
     }
-    std::printf("{\n  \"exists\": %s, \"hasAllay\": %s, \"chests\": %zu, \"hasTrim\": %s,\n",
-                jsonBool(o.exists), jsonBool(o.hasAllay), o.chests.size(), jsonBool(hasAny));
+    std::printf("{\n  \"exists\": %s, \"hasAllay\": %s, \"allayEvaluated\": %s, \"allayCages\": %d, "
+                "\"chests\": %zu, \"hasTrim\": %s,\n",
+                jsonBool(o.exists), jsonBool(o.hasAllay), jsonBool(o.allayEvaluated), o.allayCages,
+                o.chests.size(), jsonBool(hasAny));
     std::printf("  \"list\": [\n");
     for (size_t i = 0; i < o.chests.size(); i++) {
         const auto &c = o.chests[i];

@@ -52,7 +52,7 @@ const FeatureDef kFeatures[] = {
     {kFortress, "nether_fortress", kNether, "exact-cubiomes"},
     {kEndCity, "end_city", kEnd, "exact-cubiomes"},
     {kAncient, "ancient_city", kOverworld, "exact-geode"},
-    {kTrailRuins, "trail_ruins", kOverworld, "unsupported"},
+    {kTrailRuins, "trail_ruins", kOverworld, "needs-vanilla-height"},
     {kOceanRuin, "ocean_ruin", kOverworld, "partial-processor"},
     {kMansion, "woodland_mansion", kOverworld, "exact-layout"},
 };
@@ -185,9 +185,9 @@ bool emitPoint(const FeatureDef &f, int mc, uint64_t seed, int x, int z, bool &f
         beginPoint(first);
         std::printf(
             "{\"feature\":\"%s\",\"status\":\"%s\",\"dim\":\"%s\",\"x\":%d,\"z\":%d,"
-            "\"exists\":%s,\"hasAllay\":%s,\"chests\":[",
+            "\"exists\":%s,\"hasAllay\":%s,\"allayEvaluated\":%s,\"allayCages\":%d,\"chests\":[",
             f.key, f.status, dimName(f.dim), x, z, ol.exists ? "true" : "false",
-            ol.hasAllay ? "true" : "false");
+            ol.hasAllay ? "true" : "false", ol.allayEvaluated ? "true" : "false", ol.allayCages);
         for (size_t i = 0; i < ol.chests.size(); i++) {
             printChestJson(ol.chests[i], i + 1 < ol.chests.size());
         }

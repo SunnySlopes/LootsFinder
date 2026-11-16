@@ -27,27 +27,14 @@ struct PlacedTemplate {
     int rotation = 0;   // 0..3 = NONE / CW90 / CW180 / CCW90
 };
 
-/** Exact WORLD_SURFACE_WG provider: block Y of the first free block. */
-using OutpostSurfaceHeightFn = int (*)(int mc, uint64_t seed, int x, int z);
-
-/** Install (or clear with nullptr) an exact height provider. */
-void outpostSetSurfaceHeightProvider(OutpostSurfaceHeightFn fn);
-
-/** True when an exact height provider is installed (allay expansion is only trusted then). */
-bool outpostHasSurfaceHeightProvider();
-
 struct Assembly {
     bool exists = false;
-    /** True when the allay-cage template was placed by the expansion. */
     bool hasAllay = false;
+    int allayCages = 0;
     std::vector<PlacedTemplate> pieces;
 };
 
-/**
- * Assemble a pillager outpost at the structure's start block position.
- * Returns exists=false when the template data is unavailable or the start
- * pool element is empty.
- */
+/** Assemble a pillager outpost using the built-in exact terrain height. */
 Assembly assembleOutpost(int mc, uint64_t seed, int x, int z);
 
 } // namespace outpost_detail

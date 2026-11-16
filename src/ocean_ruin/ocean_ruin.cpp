@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "loots/rng.h"
+#include "loots/worldgen.h"
 #include "loots/transform.h"
 #include "pieces_c.h"
 
@@ -23,9 +24,6 @@
 
 namespace loots {
 namespace {
-
-OceanRuinHeightFn g_oceanFloorHeight = nullptr;
-OceanRuinSolidFn g_oceanSolid = nullptr;
 
 /** Mth.getSeed(int, int, int). */
 int64_t mthGetSeed(int x, int y, int z)
@@ -180,8 +178,7 @@ void addPiece(std::vector<Piece> &pieces, bool warm, bool large, LegacyRandom &r
  */
 int templateY(int mc, uint64_t seed, int x, int z, const data::OceanTemplateBlocks &t, int rotation)
 {
-    if (!g_oceanFloorHeight || !g_oceanSolid) return 0;
-    int height = g_oceanFloorHeight(mc, seed, x, z);
+    int height = worldOceanFloorHeight(mc, seed, x, z);
     int cx, cz;
     templateTransform(t.sizeX - 1, t.sizeZ - 1, Mirror::none, rotationByIndex(rotation), 0, 0, cx, cz);
     const int cornerX = x + cx;
@@ -197,7 +194,7 @@ int templateY(int mc, uint64_t seed, int x, int z, const data::OceanTemplateBloc
         for (int xx = x0; xx <= x1; xx++) {
             int floorY = height - 1;
             // Warm oceans never carry ice; air and water are both "not solid".
-            while (floorY > -63 && !g_oceanSolid(mc, seed, xx, floorY, zz)) floorY--;
+            while (floorY > -63 && !worldSolid(mc, seed, xx, floorY, zz)) floorY--;
             minY = std::min(minY, floorY);
             if (floorY < topY - 2) area++;
         }
@@ -215,7 +212,6 @@ void collectSuspicious(int mc, uint64_t seed, const Piece &p, StructureLoot &out
 {
     const data::OceanTemplateBlocks *t = findBlocks(p.name);
     if (!t || t->blockCount == 0) return;
-    if (!g_oceanFloorHeight || !g_oceanSolid) return;
 
     const int ty = templateY(mc, seed, p.x, p.z, *t, p.rotation);
     const float integrity = p.large ? 0.9f : 0.8f;
@@ -254,7 +250,7 @@ void collectSuspicious(int mc, uint64_t seed, const Piece &p, StructureLoot &out
         const Survived &s = survivors[index];
         if (s.kind != 1) continue; // warm ruins: sand -> suspicious sand
         replaced++;
-        if (!g_oceanSolid(mc, seed, s.x, s.y - 1, s.z)) {
+        if (!worldSolid(mc, seed, s.x, s.y - 1, s.z)) {
             if (replaced >= 5) break;
             continue;
         }
@@ -273,12 +269,6 @@ void collectSuspicious(int mc, uint64_t seed, const Piece &p, StructureLoot &out
 #endif
 
 } // namespace
-
-void oceanRuinSetTerrainProvider(OceanRuinHeightFn height, OceanRuinSolidFn solid)
-{
-    g_oceanFloorHeight = height;
-    g_oceanSolid = solid;
-}
 
 bool oceanRuinLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out)
 {
