@@ -169,7 +169,7 @@ The module owns the 26.3 ancient-city layout and exact terrain queries, so
 | ancient city (ward/silence/swift sneak/golden apple) | done via built-in layout | done |
 | pillager outpost allay | best effort (needs exact height) | done |
 | ocean ruin sniffer egg | done for 26.3 (single-piece exact; multi-piece height approximate) | done |
-| woodland mansion vex trim | 1.19.4–26.3 coordinates match; 1.19.2 has no template/chests | done |
+| woodland mansion vex trim | done | done |
 | trail ruins 4 trims | best effort (height + processor) | done |
 | bastion snout / netherite / outline | chests exact; square frame is drawn by the host | done |
 | desert pyramid dune / golden apple | done (hint) | done |
@@ -193,6 +193,3 @@ update that renumbers versions fails the build instead of silently mis-tiering.
 ## License
 
 MIT - see [LICENSE](LICENSE).
-
-The host application (All-In-One Finder) is GPL-3.0-only; MIT code can be
-included in a GPL project, so linking this library into the host is fine.
