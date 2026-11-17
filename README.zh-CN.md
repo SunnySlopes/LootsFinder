@@ -107,7 +107,7 @@ data/                        生成的原版数据头，全部参与编译
 src/core/                    rng、transform、version、C ABI
 src/loot/                    战利品表回放
 src/structures/              piece 提取（pieces_c.*、structure_pieces）
-src/jigsaw/                  jigsaw 装配核心
+src/jigsaw/                  共享精确 26.3 JigsawPlacement
 src/ancient_city/            远古城市箱子
 src/bastion/                 堡垒遗迹
 src/monument/                海底神殿海绵房
@@ -147,7 +147,8 @@ All-In-One 发行包采用的就是这种方式。
 | `data/loot_tables.hpp` | 客户端 jar `loot_table/**` | 是 |
 | `data/loot_tables_26_3.hpp` | 26.3 战利品表版本段 | 是 |
 | `data/chest_layouts.hpp` | 结构 `.nbt` 模板 | 是 |
-| `data/jigsaw_templates.hpp` | 结构模板 + template pool | 是 |
+| `data/jigsaw_templates.hpp` | 远古城市模板/pool 子集 | 是 |
+| `data/jigsaw_26_3.hpp` | 26.3 完整 jigsaw 数据（堡垒/古迹/前哨站） | 是 |
 | `data/enchantments.hpp` | 附魔表 | 是 |
 | `data/mansion_templates.hpp` | 林地府邸模板 | 是 |
 | `data/trail_ruins*.hpp` | 古迹废墟模板 | 是 |
@@ -160,6 +161,8 @@ All-In-One 发行包采用的就是这种方式。
 python tools/extract_loot_tables.py --out data
 python tools/extract_chest_layouts.py --structure-dir <structure/> --out data
 python tools/extract_chest_layouts.py --jar %APPDATA%/.minecraft/versions/26.3/26.3.jar --out data
+python tools/extract_jigsaw.py --jar %APPDATA%/.minecraft/versions/26.3/26.3.jar --out data
+python tools/generate_jigsaw_fixtures.py --java "C:/Program Files/Zulu/zulu-25/bin/java.exe"
 ```
 
 用导出的 `loot_table/` 目录交叉检查生成表：
@@ -178,12 +181,12 @@ python tools/verify_py/verify_loot_tables.py
 |---|---|---|
 | 海底神殿海绵房 | 已完成 | 已完成 |
 | 远古城市（监守/幽静/迅捷潜行/附魔金） | 内置布局完成 | 已完成 |
-| 掠夺者前哨站悦灵 | 提供原版高度时回放，缺高度标记未判定 | 已知不准确 |
+| 掠夺者前哨站悦灵 | 已完成（共享精确 JigsawPlacement + 精确 WORLD_SURFACE_WG） | 已完成 |
 | 海底遗迹嗅探兽蛋 | 26.3 单 piece 精确；多 piece 高度近似 | 已完成 |
 | 林地府邸恼鬼模板 | 已完成 | 已完成 |
-| 古迹废墟 4 种纹饰 | 提供原版高度时回放，缺高度只返回轮廓 | 已知不准确 |
-| 堡垒遗迹猪鼻/下界合金/外框 | 堡垒 jigsaw 完成前箱子坐标不可靠；方形外框由主程序绘制 | 进行中 |
-| 堡垒遗迹猪灵旗帜图案 | **不准确**：仅评估 `bastion_other`，箱子坐标仍不可靠 | 已知不准确 |
+| 古迹废墟 4 种纹饰 | 已完成（精确高度 + RuleProcessor/CappedProcessor/AppendLoot） | 已完成 |
+| 堡垒遗迹猪鼻/下界合金/外框 | 已完成（共享精确 JigsawPlacement；piece/箱子 Y 精确） | 已完成 |
+| 堡垒遗迹猪灵旗帜图案 | 已完成（`bastion_other` 箱子坐标已精确） | 已完成 |
 | 沙漠神殿沙丘/附魔金 | 已完成（仅提示） | 已完成 |
 | 丛林神殿荒野纹饰 | 已完成（仅提示） | 已完成 |
 | 下界要塞肋骨纹饰 | 已完成（cubiomes箱子生成不准确，在本模块中重算） | 已完成 |
@@ -200,20 +203,21 @@ python tools/verify_py/verify_loot_tables.py
 
 1. 增加 7 张不可再生唱片的展示。
 2. 增加 23 种陶片的展示。
-3. 修复当前古迹废墟和悦灵笼算法不准确的问题。
-4. 移植共享的精确 JigsawPlacement，用于堡垒遗迹，并用 26.3 jar 验证 piece/箱子坐标。
 
 ## Jigsaw 结构精度
 
-以下三个结构目前都使用不完整的 JigsawPlacement，不能作为精确结果：
+堡垒遗迹、古迹废墟和掠夺者前哨站悦灵笼现在统一使用
+`src/jigsaw/` 中唯一的 26.3 `JigsawPlacement.addPieces` / `Placer` 精确移植。
+它完整复刻 `single` / `list` / `empty` pool element、fallback、权重、
+placement/selection priority、SequencedPriorityIterator 队列、expansion hack、
+junction，以及精确的 `WORLD_SURFACE_WG` 高度。
 
-| 结构 | 状态 | 原因 |
-|---|---|---|
-| 堡垒遗迹 | 不准确 | piece、free space、队列、treasure 展开未完整复刻 |
-| 古迹废墟 | 不准确 | 地形高度、processor、capped processor 为近似 |
-| 掠夺者前哨站悦灵笼 | 不准确 | outpost feature pool/free space/高度为近似 |
-
-后续应统一到 `src/jigsaw` 的共享 Placer，而不是维护三套近似实现。
+`tools/extract_jigsaw.py` 从 26.3 jar 生成数据；`tests/jigsaw_fixtures.hpp`
+中的回归期望由 `tools/generate_jigsaw_fixtures.py` 调用真实 26.3 Java oracle
+生成。测试覆盖 15 个堡垒起点（13 个 treasure 变体）、6 个前哨站（有/无悦灵）
+和 6 个古迹废墟起点，逐 piece 比对 origin/rotation/bounds、逐箱比对坐标和
+lootSeed、悦灵笼数量，以及每个考古方块和纹饰结果。同一套 oracle 对照还验证了
+14 个前哨站起点。
 
 ## 版本
 

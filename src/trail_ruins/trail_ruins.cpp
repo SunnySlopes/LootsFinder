@@ -3,10 +3,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#ifndef NDEBUG
-#include <cstdlib>
-#include <cstdio>
-#endif
 #include <deque>
 #include <functional>
 #include <map>
@@ -14,99 +10,29 @@
 #include <utility>
 #include <vector>
 
+#include "data.hpp"
 #include "loots/rng.h"
-#include "loots/worldgen.h"
 #include "loots/transform.h"
 #include "pieces_c.h"
+#include "placer.hpp"
+#include "processor.hpp"
 #include "trail_ruins.hpp"
 #include "trail_ruins_templates.hpp"
 
-// Best-effort faithful port of:
-//   JigsawPlacement.addPieces / Placer  (all trail-ruins pools are RIGID)
-//   StructureTemplate.processBlockInfos + RuleProcessor + CappedProcessor
-//   rule.blockentity.AppendLoot
-// for the 26.3 trail_ruins structure.  See the header for the known gap
-// (exact WORLD_SURFACE_WG height).
+// Trail ruins adapter:
+//   * the piece graph is produced by the shared JigsawPlacement port
+//   * the archaeology processor chain (RuleProcessor / CappedProcessor /
+//     AppendLoot) is replayed here because it is structure-specific
+// See the public header for the terrain-height assumptions.
 
 namespace loots {
 namespace {
-
-constexpr int kMaxDepth = 7;       // trail_ruins.json "size"
-constexpr int kMaxDistance = 80;   // max_distance_from_center
-constexpr int kStartY = -15;       // start_height.absolute
-constexpr int kWorldMinY = -64;
-constexpr int kWorldMaxY = 319;
 
 struct Vec3i {
     int x = 0, y = 0, z = 0;
 };
 
 Vec3i operator+(const Vec3i &a, const Vec3i &b) { return {a.x + b.x, a.y + b.y, a.z + b.z}; }
-Vec3i operator-(const Vec3i &a, const Vec3i &b) { return {a.x - b.x, a.y - b.y, a.z - b.z}; }
-
-struct Box {
-    int minX = 0, minY = 0, minZ = 0, maxX = -1, maxY = -1, maxZ = -1;
-
-    bool intersects(const Box &b) const
-    {
-        return maxX >= b.minX && minX <= b.maxX && maxY >= b.minY && minY <= b.maxY &&
-               maxZ >= b.minZ && minZ <= b.maxZ;
-    }
-    bool contains(const Vec3i &p) const
-    {
-        return p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY && p.z >= minZ &&
-               p.z <= maxZ;
-    }
-    bool contains(const Box &b) const
-    {
-        return b.minX >= minX && b.maxX <= maxX && b.minY >= minY && b.maxY <= maxY &&
-               b.minZ >= minZ && b.maxZ <= maxZ;
-    }
-    Box moved(int dx, int dy, int dz) const
-    {
-        return {minX + dx, minY + dy, minZ + dz, maxX + dx, maxY + dy, maxZ + dz};
-    }
-    void encapsulate(const Box &b)
-    {
-        minX = std::min(minX, b.minX);
-        minY = std::min(minY, b.minY);
-        minZ = std::min(minZ, b.minZ);
-        maxX = std::max(maxX, b.maxX);
-        maxY = std::max(maxY, b.maxY);
-        maxZ = std::max(maxZ, b.maxZ);
-    }
-};
-
-int floorDiv(int v, int d)
-{
-    int q = v / d;
-    if (v < 0 && v % d) q--;
-    return q;
-}
-
-const char *stripNamespace(const char *s)
-{
-    if (s && std::strncmp(s, "minecraft:", 10) == 0) return s + 10;
-    return s;
-}
-
-bool sameName(const char *a, const char *b)
-{
-    if (!a || !b) return false;
-    return std::strcmp(stripNamespace(a), stripNamespace(b)) == 0;
-}
-
-/** Mth.getSeed(int, int, int). */
-int64_t mthGetSeed(int x, int y, int z)
-{
-    const int32_t ix = static_cast<int32_t>(static_cast<uint32_t>(x) * 3129871u);
-    int64_t v = static_cast<int64_t>(ix) ^ (static_cast<int64_t>(z) * 116129781LL) ^
-                static_cast<int64_t>(y);
-    uint64_t u = static_cast<uint64_t>(v) * static_cast<uint64_t>(v);
-    u *= 42317861ULL;
-    u += static_cast<uint64_t>(v) * 11ULL;
-    return static_cast<int64_t>(u) >> 16;
-}
 
 template <class Container>
 void shuffle(LegacyRandom &rng, Container &v)
@@ -115,403 +41,103 @@ void shuffle(LegacyRandom &rng, Container &v)
         std::swap(v[static_cast<size_t>(n - 1)], v[static_cast<size_t>(rng.nextInt(n))]);
 }
 
-int rotateDir(int dir, int rot)
-{
-    if (dir >= 4) return dir; // up / down stay vertical
-    return (dir + rot) & 3;   // N,E,S,W order matches Rotation order
-}
-
-int oppositeDir(int dir)
-{
-    switch (dir) {
-    case 0: return 2;
-    case 1: return 3;
-    case 2: return 0;
-    case 3: return 1;
-    case 4: return 5;
-    default: return 4;
-    }
-}
-
-Vec3i stepDir(int dir)
-{
-    switch (dir) {
-    case 0: return {0, 0, -1};
-    case 1: return {1, 0, 0};
-    case 2: return {0, 0, 1};
-    case 3: return {-1, 0, 0};
-    case 4: return {0, 1, 0};
-    default: return {0, -1, 0};
-    }
-}
-
-int stepY(int dir) { return dir == 4 ? 1 : (dir == 5 ? -1 : 0); }
-
 Vec3i rotateLocal(int x, int y, int z, int rot)
 {
-    int ox = 0, oy = 0, oz = 0;
-    templateTransform(x, y, z, Mirror::none, rotationByIndex(rot), 0, 0, 0, ox, oy, oz);
-    return {ox, oy, oz};
+    int ox = 0;
+    int oz = 0;
+    templateTransform(x, z, Mirror::none, rotationByIndex(rot), 0, 0, ox, oz);
+    return {ox, y, oz};
 }
 
-int templateIndex(const char *location)
+int trailTemplateIndex(const std::string &name)
 {
     for (size_t i = 0; i < sizeof(data::kTrailTemplates) / sizeof(data::kTrailTemplates[0]); i++)
-        if (sameName(data::kTrailTemplates[i].name, location)) return static_cast<int>(i);
+        if (name == data::kTrailTemplates[i].name) return static_cast<int>(i);
     return -1;
 }
-
-int poolIndex(const char *name)
-{
-    for (size_t i = 0; i < sizeof(data::kTrailPools) / sizeof(data::kTrailPools[0]); i++)
-        if (sameName(data::kTrailPools[i].name, name)) return static_cast<int>(i);
-    return -1;
-}
-
-/** getShuffledTemplates(): expanded weighted list, then Util.shuffle. */
-std::vector<int> poolTemplates(const char *name)
-{
-    std::vector<int> out;
-    const int pi = poolIndex(name);
-    if (pi < 0) return out;
-    const data::TrailPool &pool = data::kTrailPools[pi];
-    out.reserve(pool.count);
-    for (int i = 0; i < pool.count; i++) {
-        const data::TrailPoolElement &e = data::kTrailPoolElements[pool.first + i];
-        const int ti = templateIndex(e.location);
-        if (ti < 0) continue;
-        for (int w = 0; w < (e.weight ? e.weight : 1); w++) out.push_back(ti);
-    }
-    return out;
-}
-
-Box templateBox3(const Vec3i &pos, int rot, int tmpl)
-{
-    const data::TrailTemplate &t = data::kTrailTemplates[tmpl];
-    const Box2i b = templateBox(pos.x, pos.z, rotationByIndex(rot), 0, 0, t.sx, t.sz);
-    return {b.minX, pos.y, b.minZ, b.maxX, pos.y + t.sy - 1, b.maxZ};
-}
-
-struct JigRuntime {
-    Vec3i pos;
-    int facing = 0;
-    int top = 4;
-    bool rollable = false;
-    int placePriority = 0;
-    const char *name = "";
-    const char *target = "";
-    const char *pool = "";
-};
-
-/** SinglePoolElement.getShuffledJigsawBlocks(). */
-void shuffledJigsaws(int tmpl, const Vec3i &anchor, int rot, LegacyRandom &rng,
-                     std::vector<JigRuntime> &out)
-{
-    const data::TrailTemplate &t = data::kTrailTemplates[tmpl];
-    out.clear();
-    if (t.jigsawCount == 0) return;
-    const data::TrailJigsaw *base = &data::kTrailJigsaws[t.firstJigsaw];
-    std::vector<int> order(t.jigsawCount);
-    std::iota(order.begin(), order.end(), 0);
-    shuffle(rng, order); // Util.shuffle
-    std::stable_sort(order.begin(), order.end(), [base](int a, int b) {
-        return base[a].selectionPriority > base[b].selectionPriority;
-    });
-    out.reserve(order.size());
-    for (int idx : order) {
-        const data::TrailJigsaw &j = base[idx];
-        const Vec3i local = rotateLocal(j.x, j.y, j.z, rot);
-        out.push_back({anchor + local,
-                       rotateDir(j.facing, rot),
-                       rotateDir(j.top, rot),
-                       j.rollable != 0,
-                       j.placementPriority,
-                       j.name,
-                       j.target,
-                       j.pool});
-    }
-}
-
-bool canAttach(const JigRuntime &source, const JigRuntime &target)
-{
-    return source.facing == oppositeDir(target.facing) &&
-           (source.rollable || source.top == target.top) &&
-           sameName(source.target, target.name);
-}
-
-struct FreeCtx {
-    Box aabb;
-    std::vector<Box> occupied;
-
-    bool fits(const Box &candidate) const
-    {
-        if (!aabb.contains(candidate)) return false;
-        return std::none_of(occupied.begin(), occupied.end(),
-                            [&](const Box &current) { return current.intersects(candidate); });
-    }
-};
 
 struct Piece {
     int tmpl = -1;
-    Vec3i pos; // StructureTemplate anchor
+    Vec3i pos;
     int rot = 0;
-    Box box;
-    int groundDelta = 1;
-    int localCtx = -1;
 };
 
-struct State {
-    int piece = 0;
-    int ctx = -1; // -1 = global context
-    int depth = 0;
-};
+bool firstRuleLeavesGravel(int processor, const Vec3i &w)
+{
+    // trail_ruins_tower_top_archaeology has no initial RuleProcessor.
+    if (processor == 2) return true;
+    LegacyRandom r(static_cast<uint64_t>(jigsaw::mthGetSeed(w.x, w.y, w.z)));
+    if (r.nextFloat() < 0.2f) return false; // gravel -> dirt
+    if (r.nextFloat() < 0.1f) return false; // gravel -> coarse_dirt
+    return true;
+}
 
-class Placer {
-public:
-    Placer(int mc, uint64_t seed) : mc_(mc), seed_(seed) {}
+void collectSuspicious(const Piece &p, uint64_t seed, StructureLoot &out)
+{
+    const data::TrailTemplate &t = data::kTrailTemplates[p.tmpl];
+    if (t.gravelCount == 0) return;
 
-    bool run(int startX, int startZ, bool collectLoot, StructureLoot &out)
-    {
-        LegacyRandom rng(static_cast<uint64_t>(largeFeatureSeedValue(mc_, seed_, startX >> 4, startZ >> 4)));
-        const int centerRot = rng.nextInt(4); // Rotation.getRandom
-        std::vector<int> tower = poolTemplates("minecraft:trail_ruins/tower");
-        if (tower.empty()) return false;
-        const int centerTmpl = tower[static_cast<size_t>(rng.nextInt(static_cast<int>(tower.size())))];
+    std::vector<Vec3i> world;
+    world.reserve(t.gravelCount);
 
-        Vec3i centerPos{startX, kStartY, startZ};
-        Box centerBox = templateBox3(centerPos, centerRot, centerTmpl);
-        const int centerX = (centerBox.minX + centerBox.maxX) / 2;
-        const int centerZ = (centerBox.minZ + centerBox.maxZ) / 2;
-        const int bottomY = loots::worldSurfaceHeight(mc_, seed_, centerX, centerZ) + kStartY;
-        const int oldAbsGroundY = centerBox.minY + 1; // SinglePoolElement GROUND_LEVEL_DELTA
-        const int dy = bottomY - oldAbsGroundY;
-        centerPos.y += dy;
-        centerBox = centerBox.moved(0, dy, 0);
+    // Map surviving block index -> gravel position.  The two capped processors
+    // in the houses list share the same seed, hence the same permutation; the
+    // first one consumes its matches, the second sees the rest.
+    std::vector<int> byIndex(static_cast<size_t>(t.blockCount), -1);
+    for (int i = 0; i < t.gravelCount; i++) {
+        const data::TrailGravel &g = data::kTrailGravel[t.firstGravel + i];
+        const Vec3i local = rotateLocal(g.x, g.y, g.z, p.rot);
+        const Vec3i w = p.pos + local;
+        if (!firstRuleLeavesGravel(t.processor, w)) continue;
+        byIndex[static_cast<size_t>(g.index)] = static_cast<int>(world.size());
+        world.push_back(w);
+    }
+    if (world.empty()) return;
 
-        global_.aabb = {centerX - kMaxDistance,
-                        std::max(bottomY - kMaxDistance, kWorldMinY),
-                        centerZ - kMaxDistance,
-                        centerX + kMaxDistance,
-                        std::min(bottomY + kMaxDistance, kWorldMaxY),
-                        centerZ + kMaxDistance};
-        global_.occupied.push_back(centerBox);
+    // CappedProcessor: createThreadLocalInstance(worldSeed).forkPositional().at(position)
+    LegacyRandom seedRng(seed);
+    const uint64_t forkSeed = seedRng.nextLong();
+    LegacyRandom capRng(static_cast<uint64_t>(jigsaw::mthGetSeed(p.pos.x, p.pos.y, p.pos.z)) ^
+                        forkSeed);
+    std::vector<uint16_t> perm(static_cast<size_t>(t.blockCount));
+    std::iota(perm.begin(), perm.end(), 0);
+    shuffle(capRng, perm);
 
-        Piece center;
-        center.tmpl = centerTmpl;
-        center.pos = centerPos;
-        center.rot = centerRot;
-        center.box = centerBox;
-        center.groundDelta = 1;
-        pieces_.push_back(center);
-        tryPlacing(0, -1, 0, rng);
-        while (!queue_.empty()) {
-            auto it = queue_.begin();
-            const State s = it->second.front();
-            it->second.pop_front();
-            if (it->second.empty()) queue_.erase(it);
-            tryPlacing(s.piece, s.ctx, s.depth, rng);
-        }
-
-        if (pieces_.empty()) return false;
-        out.kind = "trail_ruins";
-        out.exists = true;
-        out.pieces = static_cast<int>(pieces_.size());
-        out.minX = out.minY = out.minZ = 0x7fffffff;
-        out.maxX = out.maxY = out.maxZ = -0x7fffffff;
-        for (const Piece &p : pieces_) {
-#ifndef NDEBUG
-            if (std::getenv("LOOTS_TRAIL_DEBUG"))
-                std::fprintf(stderr, "TP %s %d %d %d rot%d\n", data::kTrailTemplates[p.tmpl].name, p.pos.x, p.pos.y, p.pos.z, p.rot);
-#endif
-            out.minX = std::min(out.minX, p.box.minX);
-            out.minY = std::min(out.minY, p.box.minY);
-            out.minZ = std::min(out.minZ, p.box.minZ);
-            out.maxX = std::max(out.maxX, p.box.maxX);
-            out.maxY = std::max(out.maxY, p.box.maxY);
-            out.maxZ = std::max(out.maxZ, p.box.maxZ);
-            if (collectLoot) collectSuspicious(p, out);
-        }
-        return true;
+    struct Cap {
+        int limit;
+        const char *table;
+    };
+    Cap caps[2];
+    int capCount = 0;
+    if (t.processor == 0) { // houses: capped(common,6) + capped(rare,3)
+        caps[0] = {6, "trail_ruins_common"};
+        caps[1] = {3, "trail_ruins_rare"};
+        capCount = 2;
+    } else { // roads / tower_top: capped(common,2)
+        caps[0] = {2, "trail_ruins_common"};
+        capCount = 1;
     }
 
-private:
-    void enqueue(const State &s, int priority)
-    {
-        queue_[priority].push_back(s);
-    }
-
-    FreeCtx &freeContext(int index)
-    {
-        return index < 0 ? global_ : localCtxs_[static_cast<size_t>(index)];
-    }
-
-    void tryPlacing(int pieceIndex, int ctxIndex, int depth, LegacyRandom &rng)
-    {
-        const Piece source = pieces_[static_cast<size_t>(pieceIndex)];
-        const Box sourceBB = source.box;
-        const int sourceBoxY = sourceBB.minY;
-
-        std::vector<JigRuntime> sourceJigs;
-        shuffledJigsaws(source.tmpl, source.pos, source.rot, rng, sourceJigs);
-
-        for (const JigRuntime &sj : sourceJigs) {
-            const Vec3i targetJigsawPos = sj.pos + stepDir(sj.facing);
-            const int sourceJigsawLocalY = sj.pos.y - sourceBoxY;
-
-            std::vector<int> targets;
-            if (depth != kMaxDepth) {
-                targets = poolTemplates(sj.pool);
-                shuffle(rng, targets);
-            }
-            // The fallback pool of every trail-ruins pool is minecraft:empty.
-            if (targets.empty()) continue;
-
-            // JigsawPlacement.Placer: inside-source connectors get a private
-            // free-shape seeded with the source bounding box.
-            int childCtx = ctxIndex;
-            if (sourceBB.contains(targetJigsawPos)) {
-                if (pieces_[static_cast<size_t>(pieceIndex)].localCtx < 0) {
-                    localCtxs_.push_back({sourceBB, {}});
-                    pieces_[static_cast<size_t>(pieceIndex)].localCtx =
-                        static_cast<int>(localCtxs_.size()) - 1;
-                }
-                childCtx = pieces_[static_cast<size_t>(pieceIndex)].localCtx;
-            }
-
-            bool attached = false;
-            for (int targetTmpl : targets) {
-                if (attached) break;
-                std::vector<int> rotations{0, 1, 2, 3};
-                shuffle(rng, rotations); // Rotation.getShuffled
-                for (int rot : rotations) {
-                    if (attached) break;
-                    std::vector<JigRuntime> targetJigs;
-                    shuffledJigsaws(targetTmpl, Vec3i{0, 0, 0}, rot, rng, targetJigs);
-                    for (const JigRuntime &tj : targetJigs) {
-                        if (!canAttach(sj, tj)) continue;
-                        const Vec3i rawTargetBoxPos =
-                            targetJigsawPos - tj.pos;
-                        const Box rawTargetBB = templateBox3(rawTargetBoxPos, rot, targetTmpl);
-                        const int deltaY =
-                            sourceJigsawLocalY - tj.pos.y + stepY(sj.facing);
-                        // Both source and target are RIGID for trail ruins.
-                        const int targetBoxY = sourceBoxY + deltaY;
-                        const int yOffset = targetBoxY - rawTargetBB.minY;
-                        const Box targetBB = rawTargetBB.moved(0, yOffset, 0);
-
-                        if (!freeContext(childCtx).fits(targetBB)) continue;
-
-                        Piece child;
-                        child.tmpl = targetTmpl;
-                        child.pos = {rawTargetBoxPos.x, rawTargetBoxPos.y + yOffset,
-                                     rawTargetBoxPos.z};
-                        child.rot = rot;
-                        child.box = targetBB;
-                        child.groundDelta = source.groundDelta - deltaY;
-                        const int childIndex = static_cast<int>(pieces_.size());
-                        pieces_.push_back(child);
-                        freeContext(childCtx).occupied.push_back(targetBB);
-                        if (depth + 1 <= kMaxDepth)
-                            enqueue({childIndex, childCtx, depth + 1}, sj.placePriority);
-                        attached = true;
-                        break;
-                    }
-                }
-            }
+    for (int c = 0; c < capCount; c++) {
+        int replaced = 0;
+        for (uint16_t index : perm) {
+            const int ri = byIndex[static_cast<size_t>(index)];
+            if (ri < 0) continue;
+            const Vec3i w = world[static_cast<size_t>(ri)];
+            StructureChest chest;
+            chest.x = w.x;
+            chest.y = w.y;
+            chest.z = w.z;
+            chest.templateName = t.name;
+            chest.lootTable = caps[c].table;
+            chest.lootSeed =
+                jigsaw::legacySeedAt({w.x, w.y, w.z});
+            out.suspicious.push_back(std::move(chest));
+            byIndex[static_cast<size_t>(index)] = -1;
+            if (++replaced >= caps[c].limit) break;
         }
     }
-
-    bool firstRuleLeavesGravel(int processor, const Vec3i &w) const
-    {
-        // trail_ruins_tower_top_archaeology has no initial RuleProcessor.
-        if (processor == 2) return true;
-        LegacyRandom r(static_cast<uint64_t>(mthGetSeed(w.x, w.y, w.z)));
-        if (r.nextFloat() < 0.2f) return false; // gravel -> dirt
-        if (r.nextFloat() < 0.1f) return false; // gravel -> coarse_dirt
-        return true;
-    }
-
-    static uint64_t lootSeedAt(const Vec3i &w)
-    {
-        // ProcessorRule is seeded by Mth.getSeed(worldBlockPos); TagMatchTest
-        // consumes no RNG, so AppendLoot's nextLong is the first draw.
-        LegacyRandom r(static_cast<uint64_t>(mthGetSeed(w.x, w.y, w.z)));
-        return r.nextLong();
-    }
-
-    void collectSuspicious(const Piece &p, StructureLoot &out) const
-    {
-        const data::TrailTemplate &t = data::kTrailTemplates[p.tmpl];
-        if (t.gravelCount == 0) return;
-
-        std::vector<Vec3i> world;
-        world.reserve(t.gravelCount);
-
-        // Map surviving block index -> gravel position.  The two capped
-        // processors in the houses list share the same seed, hence the same
-        // permutation; the first one consumes its matches, the second sees the
-        // rest.
-        std::vector<int> byIndex(static_cast<size_t>(t.blockCount), -1);
-        for (int i = 0; i < t.gravelCount; i++) {
-            const data::TrailGravel &g = data::kTrailGravel[t.firstGravel + i];
-            const Vec3i local = rotateLocal(g.x, g.y, g.z, p.rot);
-            const Vec3i w = p.pos + local;
-            if (!firstRuleLeavesGravel(t.processor, w)) continue;
-            byIndex[static_cast<size_t>(g.index)] = static_cast<int>(world.size());
-            world.push_back(w);
-        }
-        if (world.empty()) return;
-
-        // CappedProcessor: createThreadLocalInstance(worldSeed).forkPositional().at(position)
-        LegacyRandom seedRng(seed_);
-        const uint64_t forkSeed = seedRng.nextLong();
-        LegacyRandom capRng(static_cast<uint64_t>(mthGetSeed(p.pos.x, p.pos.y, p.pos.z)) ^ forkSeed);
-        std::vector<uint16_t> perm(static_cast<size_t>(t.blockCount));
-        std::iota(perm.begin(), perm.end(), 0);
-        shuffle(capRng, perm);
-
-        struct Cap {
-            int limit;
-            const char *table;
-        };
-        Cap caps[2];
-        int capCount = 0;
-        if (t.processor == 0) { // houses: capped(common,6) + capped(rare,3)
-            caps[0] = {6, "trail_ruins_common"};
-            caps[1] = {3, "trail_ruins_rare"};
-            capCount = 2;
-        } else { // roads / tower_top: capped(common,2)
-            caps[0] = {2, "trail_ruins_common"};
-            capCount = 1;
-        }
-
-        for (int c = 0; c < capCount; c++) {
-            int replaced = 0;
-            for (uint16_t index : perm) {
-                const int ri = byIndex[static_cast<size_t>(index)];
-                if (ri < 0) continue;
-                const Vec3i w = world[static_cast<size_t>(ri)];
-                StructureChest chest;
-                chest.x = w.x;
-                chest.y = w.y;
-                chest.z = w.z;
-                chest.templateName = t.name;
-                chest.lootTable = caps[c].table;
-                chest.lootSeed = lootSeedAt(w);
-                out.suspicious.push_back(std::move(chest));
-                byIndex[static_cast<size_t>(index)] = -1;
-                if (++replaced >= caps[c].limit) break;
-            }
-        }
-    }
-
-    int mc_;
-    uint64_t seed_;
-    std::vector<Piece> pieces_;
-    std::vector<FreeCtx> localCtxs_;
-    FreeCtx global_;
-    std::map<int, std::deque<State>, std::greater<int>> queue_;
-};
+}
 
 } // namespace
 
@@ -522,8 +148,48 @@ bool trailRuinsLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out)
     out.z = z;
     out.kind = "trail_ruins";
     if (mc < 25 || mc > 35) return false;
-    Placer placer(mc, seed);
-    return placer.run(floorDiv(x, 16) * 16, floorDiv(z, 16) * 16, true, out);
+
+    const auto &data = jigsaw::data263();
+    if (!data.available()) return false;
+
+    jigsaw::JigsawConfig config;
+    config.startPool = "trail_ruins/tower";
+    config.maxDepth = 7;                   // trail_ruins.json "size"
+    config.maxDistanceHorizontal = 80;
+    config.maxDistanceVertical = 80;
+    config.startHeight = -15;              // start_height.absolute
+    config.projectStartToHeightmap = true; // project_start_to_heightmap
+    config.useExpansionHack = false;
+
+    const auto placement = jigsaw::placeJigsaw(config, mc, seed, x, z);
+    if (!placement.exists || placement.pieces.empty()) return false;
+
+    out.exists = true;
+    out.pieces = int(placement.pieces.size());
+    out.minX = out.minY = out.minZ = 0x7fffffff;
+    out.maxX = out.maxY = out.maxZ = -0x7fffffff;
+    for (const auto &placed : placement.pieces) {
+        out.minX = std::min(out.minX, placed.box.lo.x);
+        out.minY = std::min(out.minY, placed.box.lo.y);
+        out.minZ = std::min(out.minZ, placed.box.lo.z);
+        out.maxX = std::max(out.maxX, placed.box.hi.x);
+        out.maxY = std::max(out.maxY, placed.box.hi.y);
+        out.maxZ = std::max(out.maxZ, placed.box.hi.z);
+
+        std::vector<int> templates;
+        data.concreteTemplates(placed.element, templates);
+        for (int templateIndex : templates) {
+            const jigsaw::TemplateData &tmpl = data.templateAt(templateIndex);
+            const int trailIndex = trailTemplateIndex(tmpl.name);
+            if (trailIndex < 0) continue;
+            Piece piece;
+            piece.tmpl = trailIndex;
+            piece.pos = {placed.origin.x, placed.origin.y, placed.origin.z};
+            piece.rot = placed.rotation;
+            collectSuspicious(piece, seed, out);
+        }
+    }
+    return true;
 }
 
 } // namespace loots

@@ -1,8 +1,9 @@
-// Trail ruins: jigsaw placement + archaeology processor chain (26.3).
+// Trail ruins: shared exact JigsawPlacement plus the 26.3 archaeology
+// processor chain.
 //
-// The graph and processors need the original surface height at the rotated
-// start-piece center. This module now queries loots' built-in exact
-// WORLD_SURFACE_WG terrain directly.
+// The piece graph uses the exact WORLD_SURFACE_WG height and start_height=-15.
+// The RuleProcessor / CappedProcessor / AppendLoot replay is structure-specific
+// and lives in the adapter.
 #pragma once
 
 #include <cstdint>
@@ -18,9 +19,7 @@ namespace loots {
  *
  * Returns true when a piece graph was produced. `out.suspicious` holds worldgen
  * gravel coordinates and loot table seeds. Call StructureLoot::evaluate()
- * afterwards and inspect the specific trim kind. Terrain updates after
- * placement and overlapping external features can affect the final state of a
- * real world.
+ * afterwards and inspect the specific trim kind.
  */
 bool trailRuinsLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out);
 

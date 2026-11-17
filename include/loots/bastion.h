@@ -1,6 +1,7 @@
-// Bastion remnant: jigsaw structure (`bastion/starts`, maxDepth 6), 26 templates
-// carry 37 chests across four loot tables (treasure / bridge / hoglin_stable /
-// other). This layer is coordinate-precise: the map wants the chest positions.
+// Bastion remnant: shared exact JigsawPlacement (`bastion/starts`, maxDepth 6),
+// 26 templates carry 37 chests across four loot tables (treasure / bridge /
+// hoglin_stable / other).  Piece origins/rotations/bounds and chest X/Y/Z plus
+// per-chunk loot seeds match the 26.3 Java oracle.
 #pragma once
 
 #include <cstdint>

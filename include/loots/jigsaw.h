@@ -1,17 +1,14 @@
-// Jigsaw assembly: template-pool placement for outpost / bastion / ancient city.
+// Jigsaw assembly: compatibility API over the shared exact JigsawPlacement
+// port in src/jigsaw/placer.cpp.
 //
-// STATUS: data access + the pieces that can be verified offline are done; the
-// placement loop itself is NOT yet a faithful port of JigsawPlacement.Placer.
-// `assembleStructure()` therefore returns `complete = false` and only reports the
-// pieces it could place with confidence (the start template). Do not use its
-// coordinates for gameplay decisions yet.
+// The placer reproduces 26.3 JigsawPlacement.addPieces / Placer: start pool,
+// optional named start jigsaw, full single/list/empty pool trees, fallbacks,
+// weights, placement/selection priorities, the sequenced priority queue, free
+// space, the expansion hack, junctions and exact WORLD_SURFACE_WG heights.
 //
-// The template/pool data lives in a generated header that is NOT committed
-// (see .gitignore). Without it the module compiles to inert stubs so a fresh
-// checkout still builds; run
-//   python tools/extract_jigsaw_templates.py --structure-dir <structure/> \
-//          --pool-source <26.3.jar> --out data
-// to enable the data path.
+// The template/pool data is generated from the 26.3 jar by
+// tools/extract_jigsaw.py into data/jigsaw_26_3.hpp.  Without that data the
+// module compiles to inert stubs so a fresh checkout still builds.
 #pragma once
 
 #include <cstdint>
@@ -33,25 +30,26 @@ struct PlacedTemplate {
 };
 
 struct JigsawAssembly {
-    /** False when the generated template data is missing. */
+    /** False when the generated 26.3 jigsaw data is missing. */
     bool dataAvailable = false;
-    /** False until the placement loop is a complete, verified port. */
+    /** True: piece positions come from the exact shared placer. */
     bool complete = false;
     std::string startPool;
     std::vector<PlacedTemplate> pieces;
 };
 
-/** True when data/jigsaw_templates.hpp was present at compile time. */
+/** True when data/jigsaw_26_3.hpp was present at compile time. */
 bool hasJigsawData();
 
 /**
- * Attempt to assemble a structure from `startPool`.
- * `x, z` is the structure's block position, `maxDepth` its jigsaw size.
+ * Assemble a structure from `startPool`.
+ * `x, z` is the structure's start block position, `maxDepth` its jigsaw size.
+ * Structure-specific height projection is inferred from the pool name.
  */
 JigsawAssembly assembleStructure(const char *startPool, int mc, uint64_t seed,
                                  int x, int z, int maxDepth);
 
-/** Number of templates / connectors / pool entries available (0 without data). */
+/** Number of templates / connectors / pools available (0 without data). */
 void jigsawStats(int &templates, int &connectors, int &poolEntries);
 
 } // namespace loots

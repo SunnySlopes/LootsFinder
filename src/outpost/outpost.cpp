@@ -2,55 +2,29 @@
 #include "outpost_features.h"
 
 #include <map>
-#include <set>
 #include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
 
-#include "loots/jigsaw.h"
+#include "data.hpp"
 #include "loots/rng.h"
-#include "loots/transform.h"
 #include "pieces_c.h"
-
-#if defined(__has_include)
-#if __has_include("chest_layouts.hpp")
-#define LOOTS_HAS_CHEST_LAYOUTS 1
-#include "chest_layouts.hpp"
-#endif
-#endif
+#include "processor.hpp"
 
 namespace loots {
-namespace {
-
-#if defined(LOOTS_HAS_CHEST_LAYOUTS)
-
-const data::TemplateLayout *findLayout(const std::string &name)
-{
-    for (const auto &t : data::kTemplateLayouts) {
-        if (name == t.name) return &t;
-    }
-    return nullptr;
-}
-
-void rotateLocal(int x, int z, int sx, int sz, int rot, int &ox, int &oz)
-{
-    switch (rot & 3) {
-    case 0: ox = x; oz = z; break;
-    case 1: ox = sz - 1 - z; oz = x; break;
-    case 2: ox = sx - 1 - x; oz = sz - 1 - z; break;
-    default: ox = z; oz = sx - 1 - x; break;
-    }
-}
-
-#endif
-
-} // namespace
 
 bool pillagerOutpostLoot(int mc, uint64_t seed, int x, int z, OutpostLoot &out)
 {
     out = OutpostLoot{};
     out.lootSeedExact = true;
-#ifdef LOOTS_HAS_CHEST_LAYOUTS
+
+    const auto &data = jigsaw::data263();
+    if (!data.available()) return false;
+
     const outpost_detail::Assembly as = outpost_detail::assembleOutpost(mc, seed, x, z);
     if (!as.exists || as.pieces.empty()) return false;
+
     out.exists = true;
     out.allayEvaluated = mc <= 35;
     if (out.allayEvaluated && mc >= 23) {
@@ -58,60 +32,86 @@ bool pillagerOutpostLoot(int mc, uint64_t seed, int x, int z, OutpostLoot &out)
         out.hasAllay = out.allayCages > 0;
     }
 
+    // StructureStart.placeInChunk uses one post-process RNG stream per chunk.
+    // Containers are consumed in piece order and then in block-entity order
+    // (already sorted by y, x, z in the generated data).
+    //
+    // WorldGenRegion.setBlock returns true even when the block state is
+    // unchanged, so every successfully placed RandomizableContainer consumes a
+    // nextLong() and replaces the block entity.  The last placement at a
+    // position owns the final loot seed.  (ListPoolElement places both
+    // watchtower and watchtower_overgrown; the overgrown chest, when it survives
+    // outpost_rot, overwrites the watchtower chest.)
+    struct PlacedContainer {
+        int x = 0, y = 0, z = 0;
+        std::string table;
+        std::string state;
+        std::string templateName;
+        uint64_t lootSeed = 0;
+    };
+
     std::map<std::pair<int, int>, PostProcessRandom> postRngs;
-    std::set<std::pair<int, int>> seenChests;
-    for (const auto &p : as.pieces) {
-        if (p.name.find("watchtower") == std::string::npos) continue;
-        const data::TemplateLayout *layout = findLayout(p.name);
-        if (!layout) continue;
-        for (int i = 0; i < layout->count; i++) {
-            const data::ChestOffset &c = data::kChestOffsets[layout->first + i];
-            int ox, oz;
-            loots::templateTransform(c.x, c.z, loots::Mirror::none,
-                                     loots::rotationByIndex(p.rotation), 0, 0, ox, oz);
-            StructureChest chest{};
-            chest.x = p.x + ox;
-            chest.y = p.y;
-            chest.z = p.z + oz;
-            if (!seenChests.insert({chest.x, chest.z}).second) continue;
-            chest.templateName = p.name;
-            chest.lootTable = c.table;
-            const auto key = std::make_pair(chest.x >> 4, chest.z >> 4);
-            auto it = postRngs.find(key);
+    std::map<std::tuple<int, int, int>, PlacedContainer> containers;
+    for (const auto &piece : as.pieces) {
+        const int templateIndex = data.findTemplate(piece.name);
+        if (templateIndex < 0) continue;
+        const jigsaw::TemplateData &tmpl = data.templateAt(templateIndex);
+
+        const bool rottable = piece.name == "pillager_outpost/watchtower_overgrown";
+        for (const jigsaw::ChestData &chest : tmpl.chests) {
+            const jigsaw::Vec3 local =
+                jigsaw::rotateLocal(chest.pos, piece.rotation);
+            const int wx = piece.x + local.x;
+            const int wy = piece.y + local.y;
+            const int wz = piece.z + local.z;
+
+            // outpost_rot is a BlockRotProcessor(integrity = 0.05).  A removed
+            // chest is never placed, so it does not consume a loot seed.
+            if (rottable && !jigsaw::blockRotSurvives({wx, wy, wz}, 0.05f)) continue;
+
+            const auto key = std::make_tuple(wx, wy, wz);
+            auto existing = containers.find(key);
+
+            const auto chunkKey = std::make_pair(wx >> 4, wz >> 4);
+            auto it = postRngs.find(chunkKey);
             if (it == postRngs.end()) {
-                it = postRngs.emplace(key, PostProcessRandom(
-                    mc, loots_structure_loot_seed(mc, seed, chest.x, chest.z, 10 /* Outpost */))).first;
+                it = postRngs
+                         .emplace(chunkKey,
+                                  PostProcessRandom(
+                                      mc, loots_structure_loot_seed(mc, seed, wx, wz,
+                                                                    10 /* Outpost */)))
+                         .first;
             }
-            chest.lootSeed = it->second.nextLong();
-            out.chests.push_back(chest);
+            const uint64_t lootSeed = it->second.nextLong();
+
+            PlacedContainer placed;
+            placed.x = wx;
+            placed.y = wy;
+            placed.z = wz;
+            placed.table = chest.table;
+            placed.state = chest.state;
+            placed.templateName = tmpl.name;
+            placed.lootSeed = lootSeed;
+            if (existing != containers.end())
+                existing->second = std::move(placed);
+            else
+                containers.emplace(key, std::move(placed));
         }
     }
-    if (out.chests.empty() && !as.pieces.empty()) {
-        const int startRot = as.pieces[0].rotation;
-        const data::TemplateLayout *layout = findLayout("pillager_outpost/watchtower");
-        if (layout && layout->count > 0) {
-            const data::ChestOffset &c = data::kChestOffsets[layout->first];
-            int ox, oz;
-            loots::templateTransform(c.x, c.z, loots::Mirror::none,
-                                     loots::rotationByIndex(startRot), 0, 0, ox, oz);
-            StructureChest chest{};
-            chest.x = as.pieces[0].x + ox;
-            chest.z = as.pieces[0].z + oz;
-            chest.templateName = "pillager_outpost/watchtower";
-            chest.lootTable = c.table;
-            PostProcessRandom rng(mc, loots_structure_loot_seed(mc, seed, chest.x, chest.z, 10));
-            chest.lootSeed = rng.nextLong();
-            out.chests.push_back(chest);
-        }
+
+    for (const auto &entry : containers) {
+        const PlacedContainer &placed = entry.second;
+        if (placed.table.empty()) continue; // decorative container: RNG only
+        StructureChest result;
+        result.x = placed.x;
+        result.y = placed.y;
+        result.z = placed.z;
+        result.templateName = placed.templateName;
+        result.lootTable = placed.table;
+        result.lootSeed = placed.lootSeed;
+        out.chests.push_back(std::move(result));
     }
     return true;
-#else
-    (void)mc;
-    (void)seed;
-    (void)x;
-    (void)z;
-    return false;
-#endif
 }
 
 } // namespace loots

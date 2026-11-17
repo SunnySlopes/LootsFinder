@@ -32,6 +32,7 @@
 #include "ancient_geode.h"
 #include "pieces_c.h"
 #include "stronghold_cmd.h"
+#include "placer.hpp"
 
 namespace loots { namespace cli { int cmdAncientGeode(int mc, uint64_t seed, int x, int z); } }
 
@@ -51,6 +52,7 @@ void usage()
         "  loots-cli end-city     --mc <id> --seed <n> --x <n> --z <n>\n"
         "  loots-cli desert-pyramid --mc <id> --seed <n> --x <n> --z <n>\n"
         "  loots-cli jungle-temple  --mc <id> --seed <n> --x <n> --z <n>\n"
+        "  loots-cli jigsaw-debug --kind bastion|trail-ruins|outpost --seed <n> --x <n> --z <n>\n"
         "\n"
         "Options:\n"
         "  --mc     Minecraft version id (cubiomes MC_* value, e.g. 32 = 1.21.11)\n"
@@ -282,10 +284,10 @@ int printStructureLoot(const loots::StructureLoot &sl, const char *suspiciousSta
     std::printf("  \"loot\": [\n");
     for (size_t i = 0; i < sl.chests.size(); i++) {
         const loots::StructureChest &c = sl.chests[i];
-        std::printf("    { \"x\": %d, \"z\": %d, \"template\": \"%s\", \"table\": \"%s\", \"lootSeed\": %lld, \"lootSeedU\": %llu, "
+        std::printf("    { \"x\": %d, \"y\": %d, \"z\": %d, \"template\": \"%s\", \"table\": \"%s\", \"lootSeed\": %lld, \"lootSeedU\": %llu, "
                     "\"trim\": %s, \"netherite\": %s, \"goldenApples\": %d, "
                     "\"snifferEgg\": %s, \"piglinBanner\": %s }%s\n",
-                    c.x, c.z, c.templateName.c_str(), c.lootTable.c_str(), static_cast<long long>(c.lootSeed), static_cast<unsigned long long>(c.lootSeed), jsonBool(c.reward.trim),
+                    c.x, c.y, c.z, c.templateName.c_str(), c.lootTable.c_str(), static_cast<long long>(c.lootSeed), static_cast<unsigned long long>(c.lootSeed), jsonBool(c.reward.trim),
                     jsonBool(c.reward.netheriteUpgrade), c.reward.goldenApples,
                     jsonBool(c.reward.snifferEgg),
                     jsonBool(c.reward.hasItem(loots::LootItem_PiglinBanner)),
@@ -511,6 +513,78 @@ int cmdJigsaw(const std::vector<std::string> &flags)
     return 0;
 }
 
+int cmdJigsawDebug(const std::vector<std::string> &flags)
+{
+    long long mc = 35, seed = 0, x = 0, z = 0;
+    if (!flagValue(flags, "seed", &seed) || !flagValue(flags, "x", &x) ||
+        !flagValue(flags, "z", &z)) {
+        std::fputs("jigsaw-debug needs --seed --x --z [--kind bastion|trail-ruins|outpost] "
+                   "[--mc 35]\n", stderr);
+        return 2;
+    }
+    flagValue(flags, "mc", &mc);
+    const std::string kind = flagString(flags, "kind");
+
+    loots::jigsaw::JigsawConfig config;
+    config.maxDistanceHorizontal = 80;
+    config.maxDistanceVertical = 80;
+    if (kind == "bastion") {
+        config.startPool = "bastion/starts";
+        config.maxDepth = 6;
+        config.startHeight = 33;
+    } else if (kind == "trail-ruins") {
+        config.startPool = "trail_ruins/tower";
+        config.maxDepth = 7;
+        config.startHeight = -15;
+        config.projectStartToHeightmap = true;
+    } else if (kind == "outpost") {
+        config.startPool = "pillager_outpost/base_plates";
+        config.maxDepth = 7;
+        config.startHeight = 0;
+        config.projectStartToHeightmap = true;
+        config.useExpansionHack = true;
+    } else {
+        std::fputs("jigsaw-debug needs --kind bastion|trail-ruins|outpost\n", stderr);
+        return 2;
+    }
+
+    const auto placement = loots::jigsaw::placeJigsaw(
+        config, static_cast<int>(mc), static_cast<uint64_t>(seed), static_cast<int>(x),
+        static_cast<int>(z));
+    const auto &data = loots::jigsaw::data263();
+    std::printf("{\n  \"kind\": \"%s\", \"exists\": %s,\n", kind.c_str(),
+                jsonBool(placement.exists));
+    std::printf("  \"center\": { \"x\": %d, \"y\": %d, \"z\": %d },\n", placement.centerX,
+                placement.centerY, placement.centerZ);
+    std::printf("  \"pieces\": [\n");
+    for (size_t i = 0; i < placement.pieces.size(); i++) {
+        const auto &piece = placement.pieces[i];
+        std::vector<int> concrete;
+        data.concreteTemplates(piece.element, concrete);
+        std::printf("    { \"templates\": [");
+        for (size_t t = 0; t < concrete.size(); t++)
+            std::printf("%s\"%s\"", t ? ", " : "", data.templateAt(concrete[t]).name.c_str());
+        std::printf("], \"origin\": { \"x\": %d, \"y\": %d, \"z\": %d }, \"rotation\": \"%s\", "
+                    "\"bounds\": { \"minX\": %d, \"minY\": %d, \"minZ\": %d, \"maxX\": %d, "
+                    "\"maxY\": %d, \"maxZ\": %d }, \"ground\": %d, \"rigid\": %s, "
+                    "\"junctions\": [",
+                    piece.origin.x, piece.origin.y, piece.origin.z,
+                    loots::jigsaw::rotationName(piece.rotation), piece.box.lo.x, piece.box.lo.y,
+                    piece.box.lo.z, piece.box.hi.x, piece.box.hi.y, piece.box.hi.z,
+                    piece.groundLevelDelta, jsonBool(piece.rigid));
+        for (size_t j = 0; j < piece.junctions.size(); j++) {
+            const auto &junction = piece.junctions[j];
+            std::printf("%s{ \"x\": %d, \"y\": %d, \"z\": %d, \"deltaY\": %d, \"projection\": "
+                        "\"%s\" }",
+                        j ? ", " : "", junction.pos.x, junction.pos.y, junction.pos.z,
+                        junction.deltaY, loots::jigsaw::projectionName(junction.projection));
+        }
+        std::printf("] }%s\n", i + 1 < placement.pieces.size() ? "," : "");
+    }
+    std::printf("  ]\n}\n");
+    return 0;
+}
+
 int cmdOutpost(const std::vector<std::string> &flags)
 {
     long long mc = 0, seed = 0, x = 0, z = 0;
@@ -534,8 +608,8 @@ int cmdOutpost(const std::vector<std::string> &flags)
     std::printf("  \"list\": [\n");
     for (size_t i = 0; i < o.chests.size(); i++) {
         const auto &c = o.chests[i];
-        std::printf("    { \"x\": %d, \"z\": %d, \"table\": \"%s\", \"lootSeed\": %lld, \"trim\": %s }%s\n",
-                    c.x, c.z, c.lootTable.c_str(), (long long) c.lootSeed,
+        std::printf("    { \"x\": %d, \"y\": %d, \"z\": %d, \"table\": \"%s\", \"lootSeed\": %lld, \"trim\": %s }%s\n",
+                    c.x, c.y, c.z, c.lootTable.c_str(), (long long) c.lootSeed,
                     jsonBool(c.reward.trim), i + 1 < o.chests.size() ? "," : "");
     }
     std::printf("  ]\n}\n");
@@ -596,6 +670,7 @@ int main(int argc, char **argv)
     if (cmd == "desert-pyramid") return cmdDesert(flags);
     if (cmd == "jungle-temple") return cmdJungle(flags);
     if (cmd == "jigsaw") return cmdJigsaw(flags);
+    if (cmd == "jigsaw-debug") return cmdJigsawDebug(flags);
     if (cmd == "outpost") return cmdOutpost(flags);
     if (cmd == "bastion") return cmdBastion(flags);
     if (cmd == "help" || cmd == "--help" || cmd == "-h") {

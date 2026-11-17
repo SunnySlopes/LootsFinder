@@ -27,19 +27,48 @@ namespace jigsaw {
 struct Vec3 {
     int x = 0, y = 0, z = 0;
     bool operator==(const Vec3 &) const = default;
+    Vec3 operator+(const Vec3 &b) const { return {x + b.x, y + b.y, z + b.z}; }
+    Vec3 operator-(const Vec3 &b) const { return {x - b.x, y - b.y, z - b.z}; }
 };
 
 struct Box {
     Vec3 lo, hi;
+
+    bool operator==(const Box &) const = default;
 
     bool intersects(const Box &b) const
     {
         return hi.x >= b.lo.x && lo.x <= b.hi.x && hi.y >= b.lo.y && lo.y <= b.hi.y &&
                hi.z >= b.lo.z && lo.z <= b.hi.z;
     }
+    bool contains(const Vec3 &p) const
+    {
+        return p.x >= lo.x && p.x <= hi.x && p.y >= lo.y && p.y <= hi.y && p.z >= lo.z &&
+               p.z <= hi.z;
+    }
+    bool contains(const Box &b) const
+    {
+        return b.lo.x >= lo.x && b.hi.x <= hi.x && b.lo.y >= lo.y && b.hi.y <= hi.y &&
+               b.lo.z >= lo.z && b.hi.z <= hi.z;
+    }
+    int height() const { return hi.y - lo.y + 1; }
     Box moved(const Vec3 &p) const
     {
         return {{lo.x + p.x, lo.y + p.y, lo.z + p.z}, {hi.x + p.x, hi.y + p.y, hi.z + p.z}};
+    }
+    void encapsulate(const Vec3 &p)
+    {
+        if (p.x < lo.x) lo.x = p.x;
+        if (p.y < lo.y) lo.y = p.y;
+        if (p.z < lo.z) lo.z = p.z;
+        if (p.x > hi.x) hi.x = p.x;
+        if (p.y > hi.y) hi.y = p.y;
+        if (p.z > hi.z) hi.z = p.z;
+    }
+    void encapsulate(const Box &b)
+    {
+        encapsulate(b.lo);
+        encapsulate(b.hi);
     }
 };
 
@@ -97,6 +126,17 @@ public:
         const uint64_t hi = bits(32);
         const int64_t lo = int32_t(bits(32));
         return (hi << 32) + uint64_t(lo);
+    }
+
+    /** java.util.Random.nextFloat(). */
+    float float_value() { return float(bits(24)) / float(1u << 24); }
+
+    /** java.util.Random.nextDouble(). */
+    double double_value()
+    {
+        const uint64_t hi = bits(26);
+        const uint64_t lo = bits(27);
+        return double((hi << 27) + lo) / double(1ULL << 53);
     }
 
     /** java.util.Collections.shuffle order. */

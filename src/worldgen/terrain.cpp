@@ -790,14 +790,20 @@ struct Terrain::Impl {
         return 2 * (noise + p);
     }
 
-    bool aquifer_solid(int x, int y, int z, double density) {
+    bool aquifer_solid(int x, int y, int z, double density, bool *non_air = nullptr) {
         // 旧采样器在基础密度触及-64时直接使用全局流体，不再施加含水层压力。
-        if (generation == -2 && density <= -11.0 / 24 && eval(terrain118_data::base_density, x, y, z) <= -64)
+        if (generation == -2 && density <= -11.0 / 24 && eval(terrain118_data::base_density, x, y, z) <= -64) {
+            if (non_air) *non_air = false;
             return false;
-        if (density > 0)
+        }
+        if (density > 0) {
+            if (non_air) *non_air = true;
             return true;
-        if (global(y).at(y) == 2)
+        }
+        if (global(y).at(y) == 2) {
+            if (non_air) *non_air = true;
             return false;
+        }
         // 限制含水层缓存，避免大范围开发扫描累计所有历史查询；值可确定重算。
         if (cells.size() >= 65536)
             cells.clear();
@@ -824,6 +830,7 @@ struct Terrain::Impl {
             }
             if (y > bound.threshold) {
                 aquifer_eval = false;
+                if (non_air) *non_air = false;
                 return false;
             }
         }
@@ -874,6 +881,7 @@ struct Terrain::Impl {
             }
         }
         aquifer_eval = false;
+        if (non_air) *non_air = solid || a.at(y) != 0;
         return solid;
     }
 };
@@ -1049,20 +1057,28 @@ double Terrain::beard(int x, int y, int z) {
 }
 
 int Terrain::height_world_surface(int x, int z) {
-    // Heightmap.WORLD_SURFACE_WG 的判据是 "非空气"，即密度>0 或含水层固体。
-    // 原版 primeHeightmaps 自最高节段向下找首个满足判据的 y，返回 y+1。
-    //
-    // 性能考虑：覆盖模型只在"某处存在地面"这一粗粒度上使用该值，
-    // 逐格自 319 向下扫（最多 384 次密度采样/查询）会让复核阶段慢 100 倍。
-    // 这里改用 surface() 的样条近似值，数值误差仅影响湖体 y 定位的边界情形，
-    // 而湖体本身是 step 1 的稀有特征（1/9 与 1/200），对总母岩数的影响可忽略。
-    auto found = impl_->height_cache.find(key(x, z));
+    // Heightmap.WORLD_SURFACE_WG uses the NOT_AIR predicate.  Reproduce
+    // NoiseBasedChunkGenerator.iterateNoiseColumn exactly: scan from the top
+    // of the world down and return blockY + 1 for the first non-air state.
+    // "Non-air" is a solid density/aquifer result or an aquifer fluid.
+    const auto k = key(x, z);
+    const auto found = impl_->height_cache.find(k);
     if (found != impl_->height_cache.end())
         return found->second;
-    int height = impl_->surface(x, z);
+
+    int height = -64;
+    for (int y = 319; y >= -64; --y) {
+        bool non_air = false;
+        impl_->aquifer_solid(x, y, z, density(x, y, z), &non_air);
+        if (non_air) {
+            height = y + 1;
+            break;
+        }
+    }
+
     if (impl_->height_cache.size() >= 65536)
         impl_->height_cache.clear();
-    impl_->height_cache.emplace(key(x, z), height);
+    impl_->height_cache.emplace(k, height);
     return height;
 }
 

@@ -47,12 +47,12 @@ const FeatureDef kFeatures[] = {
     {kJungle, "jungle_temple", kOverworld, "exact-cubiomes"},
     {kShipwreck, "shipwreck", kOverworld, "exact-cubiomes"},
     {kMonument, "ocean_monument", kOverworld, "hint-only"},
-    {kOutpost, "pillager_outpost", kOverworld, "partial-jigsaw"},
-    {kBastion, "bastion", kNether, "partial-jigsaw"},
+    {kOutpost, "pillager_outpost", kOverworld, "exact-jigsaw"},
+    {kBastion, "bastion", kNether, "exact-jigsaw"},
     {kFortress, "nether_fortress", kNether, "exact-cubiomes"},
     {kEndCity, "end_city", kEnd, "exact-cubiomes"},
     {kAncient, "ancient_city", kOverworld, "exact-geode"},
-    {kTrailRuins, "trail_ruins", kOverworld, "needs-vanilla-height"},
+    {kTrailRuins, "trail_ruins", kOverworld, "exact-jigsaw"},
     {kOceanRuin, "ocean_ruin", kOverworld, "partial-processor"},
     {kMansion, "woodland_mansion", kOverworld, "exact-layout"},
 };
@@ -181,8 +181,7 @@ bool emitPoint(const FeatureDef &f, int mc, uint64_t seed, int x, int z, bool &f
         if (!pillagerOutpostLoot(mc, seed, x, z, ol)) return false;
         for (auto &c : ol.chests) {
             c.reward = evaluateChest(c.lootTable.c_str(), c.lootSeed, mc);
-            // Outpost post-process RNG is still approximate; do not report a
-            // template from a seed we cannot yet reproduce exactly.
+            // The shared placer and post-process RNG are exact for 26.3.
             if (!ol.lootSeedExact) c.reward = ChestReward{};
         }
         beginPoint(first);

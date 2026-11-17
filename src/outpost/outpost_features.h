@@ -1,14 +1,9 @@
 // Outpost jigsaw assembly (private to the loots library).
 //
-// This is a faithful port of the parts of `JigsawPlacement.addPieces` that the
-// pillager outpost uses, driven by the generated `data/jigsaw_templates.hpp`
-// (template sizes, jigsaw blocks, weighted pools).  It exists because the
-// outpost's allay cage is only placed when the feature-pool expansion actually
-// reaches `pillager_outpost/feature_cage_with_allays`; the chest position alone
-// does not tell us that.
-//
-// Known data gaps are listed in outpost_features.cpp; the important one is the
-// terrain heightmap, which the rest of loots only approximates.
+// The piece graph comes from the shared JigsawPlacement port in
+// src/jigsaw/placer.cpp.  This adapter only expands list_pool_element children
+// into concrete templates and counts feature_cage_with_allays, because the
+// allay cage is a placement result rather than a loot table.
 #pragma once
 
 #include <cstdint>

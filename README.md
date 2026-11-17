@@ -95,7 +95,7 @@ data/                        generated vanilla headers, all compiled
 src/core/                    rng, transform, version, C ABI
 src/loot/                    loot-table replay
 src/structures/              piece extraction (pieces_c.*, structure_pieces)
-src/jigsaw/                  jigsaw assembly core
+src/jigsaw/                  shared exact 26.3 JigsawPlacement
 src/ancient_city/            ancient city chests
 src/bastion/                 bastion remnant
 src/monument/                ocean monument sponge rooms
@@ -137,7 +137,8 @@ includes and is gitignored.
 | `data/loot_tables.hpp` | client jar loot_table/** | yes |
 | `data/loot_tables_26_3.hpp` | 26.3 loot-table band | yes |
 | `data/chest_layouts.hpp` | structure .nbt templates | yes |
-| `data/jigsaw_templates.hpp` | structure templates + pools | yes |
+| `data/jigsaw_templates.hpp` | ancient-city template/pool subset | yes |
+| `data/jigsaw_26_3.hpp` | full 26.3 jigsaw data (bastion / trail / outpost) | yes |
 | `data/enchantments.hpp` | enchantment tables | yes |
 | `data/mansion_templates.hpp` | woodland mansion templates | yes |
 | `data/trail_ruins*.hpp` | trail ruins templates | yes |
@@ -150,6 +151,8 @@ Regenerate (the extraction tools are local-only and gitignored):
 python tools/extract_loot_tables.py --out data
 python tools/extract_chest_layouts.py --structure-dir <structure/> --out data
 python tools/extract_chest_layouts.py --jar %APPDATA%/.minecraft/versions/26.3/26.3.jar --out data
+python tools/extract_jigsaw.py --jar %APPDATA%/.minecraft/versions/26.3/26.3.jar --out data
+python tools/generate_jigsaw_fixtures.py --java "C:/Program Files/Zulu/zulu-25/bin/java.exe"
 ```
 
 Cross-check the generated tables against an exported loot_table/ folder:
@@ -167,12 +170,12 @@ The module owns the 26.3 ancient-city layout and exact terrain queries, so
 |---|---|---|
 | ocean monument sponge rooms | done | done |
 | ancient city (ward/silence/swift sneak/golden apple) | done via built-in layout | done |
-| pillager outpost allay | **inaccurate**: approximate JigsawPlacement/height; allay cage count not reliable | known-inaccurate |
+| pillager outpost allay | done (shared exact JigsawPlacement + exact WORLD_SURFACE_WG) | done |
 | ocean ruin sniffer egg | done for 26.3 (single-piece exact; multi-piece height approximate) | done |
 | woodland mansion vex trim | done | done |
-| trail ruins 4 trims | **inaccurate**: approximate height + processor simulation; suspicious positions not reliable | known-inaccurate |
-| bastion snout / netherite / outline | **inaccurate**: JigsawPlacement incomplete; chest coords unreliable | known-inaccurate |
-| bastion piglin banner pattern | **inaccurate**: evaluated in `bastion_other`, but chest coords currently unreliable | known-inaccurate |
+| trail ruins 4 trims | done (exact height + RuleProcessor/CappedProcessor/AppendLoot) | done |
+| bastion snout / netherite / outline | done (shared exact JigsawPlacement; exact piece/chest Y) | done |
+| bastion piglin banner pattern | done (exact `bastion_other` chests) | done |
 | desert pyramid dune / golden apple | done (hint) | done |
 | jungle temple wild trim | done (hint) | done |
 | nether fortress rib trim | done (cubiomes generates chests in wrong positions, re-simulated locally) | done |
@@ -189,8 +192,23 @@ Consumers must tolerate `exists = false` and empty result vectors. The Java
 
 1. Add display for the 7 non-renewable music discs.
 2. Add display for the 23 pottery sherds.
-3. Fix the current inaccurate trail-ruins and allay-cage algorithms.
-4. Port a shared exact JigsawPlacement and use it for bastion remnants; validate piece/chest coordinates against the 26.3 jar.
+
+## Jigsaw accuracy
+
+Bastion remnants, trail ruins, and pillager-outpost allay cages now use the
+single shared exact port of 26.3 `JigsawPlacement.addPieces` / `Placer` in
+`src/jigsaw/`. It covers `single` / `list` / `empty` pool elements, fallbacks,
+weights, placement/selection priorities, the sequenced priority queue, the
+expansion hack, junctions, and exact `WORLD_SURFACE_WG` heights.
+
+The generated data (`tools/extract_jigsaw.py`) is derived from the 26.3 jar and
+the regression expectations in `tests/jigsaw_fixtures.hpp` are generated from
+the real 26.3 Java oracle by `tools/generate_jigsaw_fixtures.py`. The suite
+covers 15 bastion starts (13 treasure variants), 6 outposts with and without
+allays, and 6 trail-ruin starts, comparing every piece
+origin/rotation/bounds, every chest coordinate and loot seed, allay cages, and
+every suspicious block with its trim result. The same oracle comparison also
+validated 14 outpost starts.
 
 ## Versions
 

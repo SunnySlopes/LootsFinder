@@ -76,6 +76,10 @@ add_library(loots STATIC
   src/structures/pieces_c.c
   src/structures/structure_pieces.cpp
   src/jigsaw/jigsaw.cpp
+  src/jigsaw/data.cpp
+  src/jigsaw/placer.cpp
+  src/jigsaw/terrain.cpp
+  src/jigsaw/processor.cpp
   src/ancient_city/ancient_city.cpp
   src/bastion/bastion.cpp
   src/monument/monument_sponge.cpp
@@ -152,6 +156,7 @@ target_include_directories(loots PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/data")
 # the short include names used by the sources.
 target_include_directories(loots PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/jigsaw"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/structures"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/outpost"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/stronghold"
@@ -183,6 +188,7 @@ if (LOOTS_BUILD_CLI)
   target_link_libraries(loots-cli PRIVATE loots)
   target_include_directories(loots-cli PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/cli"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/jigsaw"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/structures"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/stronghold")
   set(GEODE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../geode")
@@ -224,6 +230,14 @@ if (LOOTS_BUILD_TESTS)
   target_link_libraries(loots-oracletest PRIVATE loots)
   set_target_properties(loots-oracletest PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
   add_test(NAME loots-oracletest COMMAND loots-oracletest)
+
+  add_executable(loots-jigsawtest tests/jigsaw_test.cpp)
+  target_link_libraries(loots-jigsawtest PRIVATE loots)
+  target_include_directories(loots-jigsawtest PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/jigsaw")
+  set_target_properties(loots-jigsawtest PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME loots-jigsawtest COMMAND loots-jigsawtest)
 
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../geode/build/libgeode_core.a")
     add_executable(loots-ancienttest tests/ancient_geode_test.cpp src/cli/ancient_geode.cpp)
