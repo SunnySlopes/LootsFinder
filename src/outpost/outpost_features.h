@@ -26,6 +26,8 @@ struct Assembly {
     bool exists = false;
     bool hasAllay = false;
     int allayCages = 0;
+    /** Number of PoolElementStructurePiece entries in the structure start. */
+    int pieceCount = 0;
     std::vector<PlacedTemplate> pieces;
 };
 

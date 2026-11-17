@@ -26,6 +26,7 @@ bool pillagerOutpostLoot(int mc, uint64_t seed, int x, int z, OutpostLoot &out)
     if (!as.exists || as.pieces.empty()) return false;
 
     out.exists = true;
+    out.pieces = as.pieceCount;
     out.allayEvaluated = mc <= 35;
     if (out.allayEvaluated && mc >= 23) {
         out.allayCages = as.allayCages;

@@ -28,6 +28,8 @@ struct OutpostLoot {
     /** True when the game version has no Allays or the exact placer was used. */
     bool allayEvaluated = false;
     int allayCages = 0;
+    /** Number of PoolElementStructurePiece entries in the structure start. */
+    int pieces = 0;
 };
 
 /** x/z identify a start chunk already found by the caller's structure locator. */

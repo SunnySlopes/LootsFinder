@@ -28,6 +28,7 @@ Assembly assembleOutpost(int mc, uint64_t seed, int x, int z)
     if (!placement.exists || placement.pieces.empty()) return out;
 
     out.exists = true;
+    out.pieceCount = int(placement.pieces.size());
     for (const auto &piece : placement.pieces) {
         std::vector<int> templates;
         data.concreteTemplates(piece.element, templates);
