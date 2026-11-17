@@ -1,5 +1,8 @@
 #include "loots/structure_pieces.h"
 
+#include <map>
+
+#include "loots/rng.h"
 #include "pieces_c.h"
 
 namespace loots {
@@ -20,9 +23,7 @@ void fill(const loots_piece_result &in, StructureLoot &out)
     for (int i = 0; i < in.chest_count; i++) {
         StructureChest chest{};
         chest.x = in.chests[i].x;
-        // Horizontal only: cubiomes does not model the vertical piece placement
-        // of 1.13+ chests, so Y is unknown (0) for these two structures.
-        chest.y = 0;
+        chest.y = in.chests[i].y;
         chest.z = in.chests[i].z;
         chest.templateName = in.chests[i].template_name;
         chest.lootTable = in.chests[i].table;
@@ -52,6 +53,19 @@ bool netherFortressLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out)
     out.kind = "nether_fortress";
     if (!loots_fortress_pieces(mc, seed, x, z, &g_buffer)) return false;
     fill(g_buffer, out);
+    // cubiomes fills the old (wrong) chest positions/seeds. Recompute the
+    // post-process RNG after replacing the chest coordinates.
+    std::map<std::pair<int, int>, PostProcessRandom> postRngs;
+    for (auto &chest : out.chests) {
+        const auto key = std::make_pair(chest.x >> 4, chest.z >> 4);
+        auto it = postRngs.find(key);
+        if (it == postRngs.end()) {
+            it = postRngs.emplace(key, PostProcessRandom(
+                mc, loots_structure_loot_seed(mc, seed, chest.x, chest.z, 18)))
+                     .first;
+        }
+        chest.lootSeed = it->second.nextLong();
+    }
     return out.exists;
 }
 

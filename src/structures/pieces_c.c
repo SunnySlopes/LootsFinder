@@ -83,14 +83,94 @@ static int generate(int mc, uint64_t seed, int x, int z, int stype,
     return generate_biome(mc, seed, x, z, stype, 0, NULL, out);
 }
 
+static void fortress_chest_pos(const Piece *p, int type, int *x, int *z)
+{
+    /* Java: CastleSmallCorridor{Left,Right}TurnPiece calls getWorldPos with
+     * local (3,2,3) / (1,2,3). getWorldPos maps local x/z according to the
+     * piece orientation; the local Y is 2 above the piece's min Y. */
+    const int lx = (type == CORRIDOR_TURN_LEFT) ? 3 : 1;
+    const int lz = 3;
+    switch (p->rot & 3) {
+    case 0: // north
+        *x = p->bb0.x + lx;
+        *z = p->bb1.z - lz;
+        break;
+    case 1: // east
+        *x = p->bb0.x + lz;
+        *z = p->bb0.z + lx;
+        break;
+    case 2: // south
+        *x = p->bb0.x + lx;
+        *z = p->bb0.z + lz;
+        break;
+    default: // west
+        *x = p->bb1.x - lz;
+        *z = p->bb0.z + lx;
+        break;
+    }
+}
+
 int loots_fortress_pieces(int mc, unsigned long long seed, int x, int z,
                           loots_piece_result *out)
 {
+    StructureSaltConfig ssconf;
+    StructureVariant sv;
+    int i, n, minY = 0, maxY = 0;
+    int dy;
     if (!out) return 0;
-    /* cubiomes' fortress chest positions were confirmed correct by in-game
-     * verification for 26.3; do not replace them with the source-piece
-     * transform here. The remaining issue is loot replay/template detection. */
-    return generate(mc, seed, x, z, Fortress, out);
+    if (!getStructureSaltConfig(Fortress, mc, 0, &ssconf)) return 0;
+    memset(&sv, 0, sizeof(sv));
+    memset(g_pieces, 0, sizeof(g_pieces));
+    n = getStructurePieces(g_pieces, FORTRESS_MAX_PIECES, Fortress, ssconf, &sv,
+                           mc, seed, x, z);
+    if (n <= 0) return 0;
+
+    for (i = 0; i < n; i++) {
+        const Piece *p = &g_pieces[i];
+        if (i == 0 || p->bb0.y < minY) minY = p->bb0.y;
+        if (i == 0 || p->bb1.y > maxY) maxY = p->bb1.y;
+    }
+    /* NetherFortressStructure.generatePieces ends with
+     * builder.moveInsideHeights(random, 48, 70). A normal fortress is taller
+     * than the 23-block window, so heightSpan <= 1 and y0Pos is exactly 48
+     * without consuming RNG. */
+    dy = (mc >= MC_1_18) ? (48 - minY) : 0;
+
+    memset(out, 0, sizeof(*out));
+    out->exists = 1;
+    out->pieces = n;
+    out->min_x = out->min_z = 0x7fffffff;
+    out->min_y = 0x7fffffff;
+    out->max_x = out->max_z = -0x7fffffff;
+    out->max_y = -0x7fffffff;
+    for (i = 0; i < n; i++) {
+        const Piece *p = &g_pieces[i];
+        if (p->bb0.x < out->min_x) out->min_x = p->bb0.x;
+        if (p->bb0.y + dy < out->min_y) out->min_y = p->bb0.y + dy;
+        if (p->bb0.z < out->min_z) out->min_z = p->bb0.z;
+        if (p->bb1.x > out->max_x) out->max_x = p->bb1.x;
+        if (p->bb1.y + dy > out->max_y) out->max_y = p->bb1.y + dy;
+        if (p->bb1.z > out->max_z) out->max_z = p->bb1.z;
+    }
+
+    for (i = 0; i < n; i++) {
+        const Piece *p = &g_pieces[i];
+        int cx, cz;
+        loots_piece_chest *dst;
+        if (!p->chestCount || (p->type != CORRIDOR_TURN_LEFT &&
+                               p->type != CORRIDOR_TURN_RIGHT))
+            continue;
+        if (out->chest_count >= LOOTS_PIECE_MAX_CHESTS) break;
+        fortress_chest_pos(p, p->type, &cx, &cz);
+        dst = &out->chests[out->chest_count++];
+        dst->x = cx;
+        dst->y = p->bb0.y + dy + 2;
+        dst->z = cz;
+        dst->seed = 0; /* recomputed per chunk by structure_pieces.cpp */
+        snprintf(dst->table, LOOTS_TABLE_NAME_MAX, "chests/nether_bridge");
+        snprintf(dst->template_name, LOOTS_TABLE_NAME_MAX, "%s", p->name ? p->name : "");
+    }
+    return 1;
 }
 
 int loots_end_city_pieces(int mc, unsigned long long seed, int x, int z,

@@ -18,6 +18,7 @@ extern "C" {
 
 typedef struct loots_piece_chest {
     int x;
+    int y;
     int z;
     char table[LOOTS_TABLE_NAME_MAX];
     char template_name[LOOTS_TABLE_NAME_MAX];

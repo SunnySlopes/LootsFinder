@@ -167,15 +167,15 @@ The module owns the 26.3 ancient-city layout and exact terrain queries, so
 |---|---|---|
 | ocean monument sponge rooms | done | done |
 | ancient city (ward/silence/swift sneak/golden apple) | done via built-in layout | done |
-| pillager outpost allay | best effort (needs exact height) | done |
+| pillager outpost allay | **inaccurate**: approximate JigsawPlacement/height; allay cage count not reliable | known-inaccurate |
 | ocean ruin sniffer egg | done for 26.3 (single-piece exact; multi-piece height approximate) | done |
 | woodland mansion vex trim | done | done |
-| trail ruins 4 trims | best effort (height + processor) | done |
-| bastion snout / netherite / outline | chests exact; square frame is drawn by the host | done |
-| bastion piglin banner pattern | chests exact; only evaluated in `bastion_other` | done |
+| trail ruins 4 trims | **inaccurate**: approximate height + processor simulation; suspicious positions not reliable | known-inaccurate |
+| bastion snout / netherite / outline | **inaccurate**: JigsawPlacement incomplete; chest coords unreliable | known-inaccurate |
+| bastion piglin banner pattern | **inaccurate**: evaluated in `bastion_other`, but chest coords currently unreliable | known-inaccurate |
 | desert pyramid dune / golden apple | done (hint) | done |
 | jungle temple wild trim | done (hint) | done |
-| nether fortress rib trim | done | done |
+| nether fortress rib trim | done (cubiomes generates chests in wrong positions, re-simulated locally) | done |
 | end city spire trim | done | done |
 | pillager outpost sentry trim | done (hint) | done |
 | shipwreck coast trim | done (hint) | done |
@@ -190,6 +190,7 @@ Consumers must tolerate `exists = false` and empty result vectors. The Java
 1. Add display for the 7 non-renewable music discs.
 2. Add display for the 23 pottery sherds.
 3. Fix the current inaccurate trail-ruins and allay-cage algorithms.
+4. Port a shared exact JigsawPlacement and use it for bastion remnants; validate piece/chest coordinates against the 26.3 jar.
 
 ## Versions
 
