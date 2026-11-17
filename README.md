@@ -172,6 +172,7 @@ The module owns the 26.3 ancient-city layout and exact terrain queries, so
 | woodland mansion vex trim | done | done |
 | trail ruins 4 trims | best effort (height + processor) | done |
 | bastion snout / netherite / outline | chests exact; square frame is drawn by the host | done |
+| bastion piglin banner pattern | chests exact; only evaluated in `bastion_other` | done |
 | desert pyramid dune / golden apple | done (hint) | done |
 | jungle temple wild trim | done (hint) | done |
 | nether fortress rib trim | done | done |
@@ -183,6 +184,12 @@ The module owns the 26.3 ancient-city layout and exact terrain queries, so
 
 Consumers must tolerate `exists = false` and empty result vectors. The Java
 26.3 backend is the oracle; it is not linked into the portable host.
+
+## TODO
+
+1. Add display for the 7 non-renewable music discs.
+2. Add display for the 23 pottery sherds.
+3. Fix the current inaccurate trail-ruins and allay-cage algorithms.
 
 ## Versions
 

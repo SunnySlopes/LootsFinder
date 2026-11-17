@@ -100,9 +100,12 @@ void printChestJson(const StructureChest &c, bool trailingComma)
     std::printf(",\"swiftSneakLevels\":");
     printSwiftSneak(r);
     std::printf(
-        ",\"goldenApples\":%d,\"netherite\":%s,\"snifferEgg\":%s}%s",
+        ",\"goldenApples\":%d,\"netherite\":%s,\"snifferEgg\":%s,"
+        "\"piglinBanner\":%s}%s",
         r.goldenApples, r.netheriteUpgrade ? "true" : "false",
-        r.snifferEgg ? "true" : "false", trailingComma ? "," : "");
+        r.snifferEgg ? "true" : "false",
+        r.hasItem(LootItem_PiglinBanner) ? "true" : "false",
+        trailingComma ? "," : "");
 }
 
 void beginPoint(bool &first)

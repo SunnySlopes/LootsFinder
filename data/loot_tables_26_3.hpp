@@ -651,7 +651,7 @@ inline const Entry kEntries[] = {
     {12, ItemKind::other, 254, 1, "ancient_debris"},
     {4, ItemKind::other, 255, 1, "netherite_scrap"},
     {10, ItemKind::other, 256, 1, "spectral_arrow"},
-    {9, ItemKind::other, 257, 1, "piglin_banner_pattern"},
+    {9, ItemKind::piglin_banner, 257, 1, "piglin_banner_pattern"},
     {5, ItemKind::other, 258, 1, "music_disc_pigstep"},
     {12, ItemKind::other, 259, 1, "golden_carrot"},
     {9, ItemKind::other, 260, 1, "golden_apple"},

@@ -3,13 +3,13 @@
 
 #define LOOTS_VERSION_MAJOR 0
 #define LOOTS_VERSION_MINOR 1
-#define LOOTS_VERSION_PATCH 0
-#define LOOTS_VERSION_STRING "0.1.0"
+#define LOOTS_VERSION_PATCH 1
+#define LOOTS_VERSION_STRING "0.1.1"
 
 // Bump this whenever the public API in loots.h changes in a way that is not
 // source compatible. The host (native/) checks it at compile time so a stale
 // submodule checkout fails loudly instead of silently misbehaving.
-#define LOOTS_ABI_VERSION 1
+#define LOOTS_ABI_VERSION 2
 
 namespace loots {
 

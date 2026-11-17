@@ -263,8 +263,10 @@ int cmdChest(const std::vector<std::string> &flags)
     std::printf(",\n  \"swiftSneakLevels\": ");
     printSwiftSneak(r.swiftSneakLevels);
     std::printf(",\n  \"netheriteUpgrade\": %s,\n"
-                "  \"goldenApples\": %d,\n  \"snifferEgg\": %s\n}\n",
-                jsonBool(r.netheriteUpgrade), r.goldenApples, jsonBool(r.snifferEgg));
+                "  \"goldenApples\": %d,\n  \"snifferEgg\": %s,\n"
+                "  \"piglinBanner\": %s\n}\n",
+                jsonBool(r.netheriteUpgrade), r.goldenApples, jsonBool(r.snifferEgg),
+                jsonBool(r.hasItem(loots::LootItem_PiglinBanner)));
     return 0;
 }
 
@@ -282,10 +284,12 @@ int printStructureLoot(const loots::StructureLoot &sl, const char *suspiciousSta
         const loots::StructureChest &c = sl.chests[i];
         std::printf("    { \"x\": %d, \"z\": %d, \"template\": \"%s\", \"table\": \"%s\", \"lootSeed\": %lld, \"lootSeedU\": %llu, "
                     "\"trim\": %s, \"netherite\": %s, \"goldenApples\": %d, "
-                    "\"snifferEgg\": %s }%s\n",
+                    "\"snifferEgg\": %s, \"piglinBanner\": %s }%s\n",
                     c.x, c.z, c.templateName.c_str(), c.lootTable.c_str(), static_cast<long long>(c.lootSeed), static_cast<unsigned long long>(c.lootSeed), jsonBool(c.reward.trim),
                     jsonBool(c.reward.netheriteUpgrade), c.reward.goldenApples,
-                    jsonBool(c.reward.snifferEgg), i + 1 < sl.chests.size() ? "," : "");
+                    jsonBool(c.reward.snifferEgg),
+                    jsonBool(c.reward.hasItem(loots::LootItem_PiglinBanner)),
+                    i + 1 < sl.chests.size() ? "," : "");
     }
     std::printf("  ],\n");
     if (suspiciousStatus) std::printf("  \"suspiciousStatus\": \"%s\",\n", suspiciousStatus);
@@ -297,7 +301,9 @@ int printStructureLoot(const loots::StructureLoot &sl, const char *suspiciousSta
                     c.x, c.y, c.z, c.templateName.c_str(), c.lootTable.c_str(),
                     (long long) c.lootSeed, jsonBool(c.reward.evaluated));
         printTrimKinds(c.reward.trimKinds);
-        std::printf(" }%s\n", i + 1 < sl.suspicious.size() ? "," : "");
+        std::printf(",\"piglinBanner\": %s }%s\n",
+                    jsonBool(c.reward.hasItem(loots::LootItem_PiglinBanner)),
+                    i + 1 < sl.suspicious.size() ? "," : "");
     }
     std::printf("  ]\n}\n");
     return 0;

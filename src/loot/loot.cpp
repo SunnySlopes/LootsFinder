@@ -384,6 +384,9 @@ ChestReward evaluateChest(const char *tableName, uint64_t lootSeed, int mc)
             case data::ItemKind::enchanted_golden_apple: out.goldenApples += count; break;
             case data::ItemKind::sniffer_egg: out.snifferEgg = true; break;
             case data::ItemKind::netherite_upgrade: out.netheriteUpgrade = true; break;
+            case data::ItemKind::piglin_banner:
+                out.itemKinds |= LootItem_PiglinBanner;
+                break;
             default:
                 if (trackedTrim(entry->kind)) {
                     out.trim = true;

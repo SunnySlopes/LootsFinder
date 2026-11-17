@@ -42,6 +42,17 @@ enum class TrimKind : uint8_t {
 const char *trimKindName(TrimKind kind);
 
 /**
+ * Tracked non-trim loot, bit flags for `ChestReward::itemKinds`.
+ *
+ * Keep the bits append-only so older binary data / persisted caches remain
+ * readable when more targets are added. The banner pattern is currently the
+ * only entry; discs and pottery sherds will take the following bits.
+ */
+enum LootItemBits : uint32_t {
+    LootItem_PiglinBanner = 1u << 0,
+};
+
+/**
  * Which of the tracked rewards a chest produced.
  *
  * When `evaluated` is false, the fields contain only rewards found before an
@@ -54,6 +65,8 @@ struct ChestReward {
     bool netheriteUpgrade = false;  // netherite upgrade template
     int goldenApples = 0;           // enchanted golden apples (set_count aware)
     bool snifferEgg = false;
+    /** Non-trim targets, see LootItemBits. */
+    uint32_t itemKinds = 0;
     std::vector<int> swiftSneakLevels;
     bool evaluated = false;
 
@@ -61,6 +74,7 @@ struct ChestReward {
     {
         return (trimKinds & (1u << static_cast<unsigned>(kind))) != 0;
     }
+    bool hasItem(uint32_t bit) const { return (itemKinds & bit) != 0; }
 };
 
 /**
