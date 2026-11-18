@@ -8,6 +8,7 @@
 #include "enchantments.hpp"
 #include "loot_tables.hpp"
 #include "loot_tables_26_3.hpp"
+#include "stronghold_loot_tables.hpp"
 #include "loots/rng.h"
 
 namespace loots {
@@ -30,6 +31,12 @@ TableData findTable(const char *name, int mc)
             if (std::strcmp(table.name, shortName) == 0)
                 return {&table, data263::kPools, data263::kEntries, data263::kOps};
         }
+    }
+    for (const auto &table : data_stronghold::kTables) {
+        if (std::strcmp(table.name, shortName) != 0) continue;
+        if (mc < 0 || (mc >= table.mcLo && mc <= table.mcHi))
+            return {&table, data_stronghold::kPools, data_stronghold::kEntries,
+                    data_stronghold::kOps};
     }
     for (const auto &table : data::kTables) {
         if (std::strcmp(table.name, shortName) != 0) continue;
@@ -206,7 +213,7 @@ void applyEnchantRandomly(LegacyRandom &rng, const char *item, const char *arg, 
         for (size_t i = 0; i < sizeof(data::kEnchantments) / sizeof(data::kEnchantments[0]); i++)
             if (std::strcmp(data::kEnchantments[i].name, arg) == 0) options.push_back(static_cast<int>(i));
         // Explicit tracked options are all single-enchantment lists.
-    } else if (arg && (arg[0] == '#' || (mc == 35 && std::strcmp(arg, "on_random_loot") == 0))) {
+    } else if (arg && (arg[0] == '#' || std::strcmp(arg, "on_random_loot") == 0)) {
         const char *tag = arg[0] == '#' ? arg + 1 : arg;
         if (std::strcmp(tag, "on_random_loot") != 0) {
             unknown = true;

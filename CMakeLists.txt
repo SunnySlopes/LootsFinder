@@ -102,7 +102,7 @@ add_library(loots STATIC
   src/worldgen/structures.cpp
   src/worldgen/overwrites.cpp
   src/worldgen/structure_layout/layout.cpp
-  src/worldgen/structure_layout/climate263.cpp
+  src/worldgen/structure_layout/climate_modern.cpp
 )
 
 set(LOOTS_WORLDGEN_DEFS
@@ -123,7 +123,7 @@ set_source_files_properties(
   src/worldgen/structures.cpp
   src/worldgen/overwrites.cpp
   src/worldgen/structure_layout/layout.cpp
-  src/worldgen/structure_layout/climate263.cpp
+  src/worldgen/structure_layout/climate_modern.cpp
   PROPERTIES COMPILE_DEFINITIONS "${LOOTS_WORLDGEN_DEFS}")
 
 # Keep loots' stronghold implementation private: another copy may coexist in
@@ -238,6 +238,13 @@ if (LOOTS_BUILD_TESTS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/jigsaw")
   set_target_properties(loots-jigsawtest PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
   add_test(NAME loots-jigsawtest COMMAND loots-jigsawtest)
+
+  add_executable(loots-multiversiontest tests/multiversion_test.cpp)
+  target_link_libraries(loots-multiversiontest PRIVATE loots)
+  target_include_directories(loots-multiversiontest PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+  set_target_properties(loots-multiversiontest PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME loots-multiversiontest COMMAND loots-multiversiontest)
 
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../geode/build/libgeode_core.a")
     add_executable(loots-ancienttest tests/ancient_geode_test.cpp src/cli/ancient_geode.cpp)

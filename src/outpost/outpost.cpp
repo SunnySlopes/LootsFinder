@@ -19,7 +19,7 @@ bool pillagerOutpostLoot(int mc, uint64_t seed, int x, int z, OutpostLoot &out)
     out = OutpostLoot{};
     out.lootSeedExact = true;
 
-    const auto &data = jigsaw::data263();
+    const auto &data = jigsaw::dataFor(mc);
     if (!data.available()) return false;
 
     const outpost_detail::Assembly as = outpost_detail::assembleOutpost(mc, seed, x, z);

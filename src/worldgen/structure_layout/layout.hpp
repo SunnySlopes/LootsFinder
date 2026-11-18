@@ -1,5 +1,5 @@
 #pragma once
-#include "climate263.hpp"
+#include "climate_modern.hpp"
 #include <array>
 #include <cstdint>
 #include <deque>
@@ -236,7 +236,7 @@ class LayoutEngine {
     const Tables &tables_;
     uint64_t seed_;
     std::unique_ptr<Generator, void (*)(Generator *)> biomes_;
-    std::unique_ptr<Climate263> climate263_;
+    std::unique_ptr<ClimateModern> climate_modern_;
     std::deque<Space> spaces_;
     std::vector<int> aliases_, parents_, connectors_, candidates_, fallbacks_;
 

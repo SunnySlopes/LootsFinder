@@ -270,6 +270,16 @@ unsigned long long loots_structure_loot_seed(int mc, unsigned long long seed,
                                  10000 * ssconf.generationStep);
 }
 
+unsigned long long loots_structure_loot_seed_index(int mc, unsigned long long seed,
+                                                   int x, int z, int generation_step,
+                                                   int decorator_index)
+{
+    const uint64_t populationSeed =
+        loots_decoration_seed_value(seed, x & ~15, z & ~15, mc >= 22);
+    return (unsigned long long) (populationSeed + decorator_index +
+                                 10000 * generation_step);
+}
+
 int loots_biome_at(int mc, unsigned long long seed, int x, int z)
 {
     static Generator gen;

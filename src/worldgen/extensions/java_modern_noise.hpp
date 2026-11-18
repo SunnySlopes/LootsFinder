@@ -5,7 +5,7 @@
 #include <cmath>
 #include <cstdint>
 
-namespace cubiomes::java263 {
+namespace cubiomes::java_modern {
 inline double wrap(double v) {
     return v - std::floor(v / 33554432.0 + 0.5) * 33554432.0;
 }

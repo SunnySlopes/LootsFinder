@@ -7,7 +7,7 @@
 // space, the expansion hack, junctions and exact WORLD_SURFACE_WG heights.
 //
 // The template/pool data is generated from the 26.3 jar by
-// tools/extract_jigsaw.py into data/jigsaw_26_3.hpp.  Without that data the
+// tools/extract_jigsaw.py into data/jigsaw_data.hpp.  Without that data the
 // module compiles to inert stubs so a fresh checkout still builds.
 #pragma once
 
@@ -38,7 +38,7 @@ struct JigsawAssembly {
     std::vector<PlacedTemplate> pieces;
 };
 
-/** True when data/jigsaw_26_3.hpp was present at compile time. */
+/** True when data/jigsaw_data.hpp was present at compile time. */
 bool hasJigsawData();
 
 /**

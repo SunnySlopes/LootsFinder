@@ -61,6 +61,11 @@ unsigned long long loots_structure_rng_seed(int mc, unsigned long long seed,
 unsigned long long loots_structure_loot_seed(int mc, unsigned long long seed,
                                              int x, int z, int stype);
 
+/** Same as loots_structure_loot_seed with an explicit step/index salt. */
+unsigned long long loots_structure_loot_seed_index(int mc, unsigned long long seed,
+                                                   int x, int z, int generation_step,
+                                                   int decorator_index);
+
 /** 该位置的生物群系 id（-1 = 失败）。 */
 int loots_biome_at(int mc, unsigned long long seed, int x, int z);
 

@@ -15,6 +15,7 @@
 #include "loots/shipwreck.h"
 #include "loots/structure_pieces.h"
 #include "loots/ocean_ruin.h"
+#include "loots/trail_ruins.h"
 #include "loots/woodland_mansion.h"
 #include "ancient_geode.h"
 #include "loots/version.h"
@@ -53,7 +54,7 @@ const FeatureDef kFeatures[] = {
     {kEndCity, "end_city", kEnd, "exact-cubiomes"},
     {kAncient, "ancient_city", kOverworld, "exact-geode"},
     {kTrailRuins, "trail_ruins", kOverworld, "exact-jigsaw"},
-    {kOceanRuin, "ocean_ruin", kOverworld, "partial-processor"},
+    {kOceanRuin, "ocean_ruin", kOverworld, "exact-1.20+"},
     {kMansion, "woodland_mansion", kOverworld, "exact-layout"},
 };
 
@@ -237,6 +238,13 @@ bool emitPoint(const FeatureDef &f, int mc, uint64_t seed, int x, int z, bool &f
             f.key, f.status, dimName(f.dim), x, z, sl.exists ? "true" : "false", sl.pieces);
         for (size_t i = 0; i < sl.chests.size(); i++) printChestJson(sl.chests[i], i + 1 < sl.chests.size());
         std::printf("]}\n");
+        return true;
+    }
+    case kTrailRuins: {
+        StructureLoot sl{};
+        if (!trailRuinsLoot(mc, seed, x, z, sl)) return false;
+        sl.evaluate(mc);
+        printStructureLoot(sl, f.key, f.status, f.dim, first);
         return true;
     }
     case kAncient: {

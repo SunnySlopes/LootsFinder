@@ -3,7 +3,7 @@
 #include "carver.hpp"
 #include "structures.hpp"
 #include "overwrites.hpp"
-#include "extensions/java263_noise.hpp"
+#include "extensions/java_modern_noise.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -82,7 +82,7 @@ struct NoiseSpec {
 }
 
 #include "terrain_data.hpp"
-#include "terrain263_data.hpp"
+#include "terrain_modern_data.hpp"
 #include "terrain118_data.hpp"
 
 namespace geode {
@@ -145,7 +145,7 @@ struct Normal {
                 auto &b = second[i];
                 auto sample = [&](const Octave &o, double scale) {
                     double f = o.frequency * scale;
-                    return cubiomes::java263::perlin(o.noise.d, o.noise.a, o.noise.b, o.noise.c, x * f, y * f, z * f);
+                    return cubiomes::java_modern::perlin(o.noise.d, o.noise.a, o.noise.b, o.noise.c, x * f, y * f, z * f);
                 };
                 value += float(a.weight) * sample(a, 1);
                 value += float(b.weight) * sample(b, 1.0181268882175227);
@@ -206,7 +206,7 @@ struct Blended {
             float value = 0;
             double frequency = 1;
             for (auto &n : octaves) {
-                value += weight * cubiomes::java263::perlin(n.d, n.a, n.b, n.c, x * frequency, y * frequency, z * frequency,
+                value += weight * cubiomes::java_modern::perlin(n.d, n.a, n.b, n.c, x * frequency, y * frequency, z * frequency,
                                                    smear * frequency);
                 frequency *= 0.5;
                 weight *= 2;
@@ -216,7 +216,7 @@ struct Blended {
         float mix = std::clamp(sum(main, xx / p[2], yy / p[3], zz / p[2], smear / p[3], 0.05f) + 0.5f, 0.0f, 1.0f);
         float a = mix < 1 ? sum(low, xx, yy, zz, smear, 1.0f / 65536) : 0,
               b = mix > 0 ? sum(high, xx, yy, zz, smear, 1.0f / 65536) : 0;
-        return cubiomes::java263::lerp(mix, a, b);
+        return cubiomes::java_modern::lerp(mix, a, b);
     }
 };
 
@@ -301,10 +301,10 @@ struct Terrain::Impl {
         xSetSeed(&random, seed);
         uint64_t lo = xNextLong(&random), hi = xNextLong(&random);
         for (auto &spec : uses_118_terrain(generation) ? terrain118_data::noises :
-                         generation >= 5 ? terrain263_data::noises : terrain_data::noises)
+                         generation >= 5 ? terrain_modern_data::noises : terrain_data::noises)
             noises.emplace_back(spec, Xoroshiro{lo ^ spec.lo, hi ^ spec.hi}, generation >= 5);
         for (auto params : uses_118_terrain(generation) ? terrain118_data::blends :
-                           generation >= 5 ? terrain263_data::blends : terrain_data::blends)
+                           generation >= 5 ? terrain_modern_data::blends : terrain_data::blends)
             blends.emplace_back(Xoroshiro{lo ^ terrain_data::terrain_hash[0], hi ^ terrain_data::terrain_hash[1]},
                                 params);
         Xoroshiro aq{lo ^ terrain_data::aquifer_hash[0], hi ^ terrain_data::aquifer_hash[1]};
@@ -499,7 +499,7 @@ struct Terrain::Impl {
     }
 
     float eval263(int id, int x, int y, int z) {
-        auto &n = terrain263_data::nodes[id];
+        auto &n = terrain_modern_data::nodes[id];
         if (n.op == Op::Constant)
             return float(n.p);
         Key key{id, x, y, z};
@@ -572,7 +572,7 @@ struct Terrain::Impl {
                 break;
             case Op::Lerp: {
                 float t = a();
-                result = t == 0 ? b() : t == 1 ? eval263(n.c, x, y, z) : cubiomes::java263::lerp(t, b(), eval263(n.c, x, y, z));
+                result = t == 0 ? b() : t == 1 ? eval263(n.c, x, y, z) : cubiomes::java_modern::lerp(t, b(), eval263(n.c, x, y, z));
                 break;
             }
             case Op::Range: {
@@ -599,15 +599,15 @@ struct Terrain::Impl {
                 float tx = float(x - bx) / sx, ty = float(y - by) / sy, tz = float(z - bz) / sx, corners[2][2];
                 for (int iz = 0; iz < 2; ++iz)
                     for (int iy = 0; iy < 2; ++iy)
-                        corners[iz][iy] = cubiomes::java263::lerp(tx, eval263(n.a, bx, by + iy * sy, bz + iz * sx),
+                        corners[iz][iy] = cubiomes::java_modern::lerp(tx, eval263(n.a, bx, by + iy * sy, bz + iz * sx),
                                                          eval263(n.a, bx + sx, by + iy * sy, bz + iz * sx));
-                result = cubiomes::java263::lerp(tz, cubiomes::java263::lerp(ty, corners[0][0], corners[0][1]),
-                                        cubiomes::java263::lerp(ty, corners[1][0], corners[1][1]));
+                result = cubiomes::java_modern::lerp(tz, cubiomes::java_modern::lerp(ty, corners[0][0], corners[0][1]),
+                                        cubiomes::java_modern::lerp(ty, corners[1][0], corners[1][1]));
                 break;
             }
             case Op::Spline: {
                 float input = a();
-                auto *begin = terrain263_data::points.data() + n.b;
+                auto *begin = terrain_modern_data::points.data() + n.b;
                 int count = n.c, index = -1;
                 while (index + 1 < count && input >= begin[index + 1].location)
                     ++index;
@@ -623,7 +623,7 @@ struct Terrain::Impl {
                           t = (input - begin[index].location) / span, v0 = value(index), v1 = value(index + 1),
                           delta = v1 - v0;
                     float d0 = begin[index].derivative * span - delta, d1 = -begin[index + 1].derivative * span + delta;
-                    result = cubiomes::java263::lerp(t, v0, v1) + t * (1 - t) * cubiomes::java263::lerp(t, d0, d1);
+                    result = cubiomes::java_modern::lerp(t, v0, v1) + t * (1 - t) * cubiomes::java_modern::lerp(t, d0, d1);
                 }
                 break;
             }
@@ -654,7 +654,7 @@ struct Terrain::Impl {
             auto found = surfaces.find(k);
             if (found != surfaces.end())
                 return found->second;
-            int height = int(eval263(terrain263_data::surface_level, x, 0, z));
+            int height = int(eval263(terrain_modern_data::surface_level, x, 0, z));
             surfaces.emplace(k, height);
             return height;
         }
@@ -705,7 +705,7 @@ struct Terrain::Impl {
             lowest = std::min(lowest, h);
         }
         double wet = -1, full = -1;
-        bool excluded = generation >= 5 ? eval263(terrain263_data::exclusion, x, y, z) > 0
+        bool excluded = generation >= 5 ? eval263(terrain_modern_data::exclusion, x, y, z) > 0
                                         : !uses_118_terrain(generation) &&
                                               eval(terrain_data::erosion, x, y, z) < -0.22499999403953552 &&
                                               eval(terrain_data::depth, x, y, z) > 0.8999999761581421;
@@ -713,7 +713,7 @@ struct Terrain::Impl {
             double water = under_water ? 1.0 - std::clamp((lowest + 8 - y) / 64.0, 0.0, 1.0) : 0.0;
             double noise = std::clamp(
                 eval(uses_118_terrain(generation) ? terrain118_data::fluid_level_floodedness :
-                     generation >= 5 ? terrain263_data::fluid_level_floodedness : terrain_data::fluid_level_floodedness,
+                     generation >= 5 ? terrain_modern_data::fluid_level_floodedness : terrain_data::fluid_level_floodedness,
                      x, y, z),
                 -1.0, 1.0);
             wet = noise - lerp(1 - water, -0.8, 0.4);
@@ -726,7 +726,7 @@ struct Terrain::Impl {
             int gx = floor_div(x, 16), gy = floor_div(y, 40), gz = floor_div(z, 16);
             double spread =
                 eval(uses_118_terrain(generation) ? terrain118_data::fluid_level_spread :
-                     generation >= 5 ? terrain263_data::fluid_level_spread : terrain_data::fluid_level_spread, gx, gy,
+                     generation >= 5 ? terrain_modern_data::fluid_level_spread : terrain_data::fluid_level_spread, gx, gy,
                      gz) *
                 10;
             spread_level = gy * 40 + 20 + int(std::floor(spread / 3)) * 3;
@@ -736,7 +736,7 @@ struct Terrain::Impl {
         int lava_level = uses_118_terrain(generation) ? spread_level : level;
         if (lava_level <= -10 && lava_level != -32512 && result.type != 2 &&
             std::abs(eval(uses_118_terrain(generation) ? terrain118_data::lava :
-                          generation >= 5 ? terrain263_data::lava : terrain_data::lava, floor_div(x, 64),
+                          generation >= 5 ? terrain_modern_data::lava : terrain_data::lava, floor_div(x, 64),
                           floor_div(y, 40), floor_div(z, 64))) > 0.3)
             result.type = 2;
         result.level = level;
@@ -784,7 +784,7 @@ struct Terrain::Impl {
         if (p >= -2 && p <= 2) {
             if (std::isnan(barrier))
                 barrier = eval(uses_118_terrain(generation) ? terrain118_data::barrier :
-                               generation >= 5 ? terrain263_data::barrier : terrain_data::barrier, x, y, z);
+                               generation >= 5 ? terrain_modern_data::barrier : terrain_data::barrier, x, y, z);
             noise = barrier;
         }
         return 2 * (noise + p);
@@ -892,13 +892,13 @@ Terrain::~Terrain() = default;
 
 double Terrain::density(int x, int y, int z) {
     return impl_->eval(uses_118_terrain(impl_->generation) ? terrain118_data::root :
-                       impl_->generation >= 5 ? terrain263_data::root : terrain_data::root, x, y, z);
+                       impl_->generation >= 5 ? terrain_modern_data::root : terrain_data::root, x, y, z);
 }
 
 double Terrain::raw_density(int x, int y, int z) {
     impl_->interpolate = false;
     double v = impl_->eval(uses_118_terrain(impl_->generation) ? terrain118_data::root :
-                          impl_->generation >= 5 ? terrain263_data::root : terrain_data::root, x, y, z);
+                          impl_->generation >= 5 ? terrain_modern_data::root : terrain_data::root, x, y, z);
     impl_->interpolate = true;
     return v;
 }

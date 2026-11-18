@@ -392,7 +392,7 @@ Placement placeJigsaw(const JigsawConfig &config, int mc, uint64_t seed, int x, 
 {
     const int startX = (x >> 4) << 4;
     const int startZ = (z >> 4) << 4;
-    Placer placer(config, data263(), mc, seed, startX, startZ);
+    Placer placer(config, dataFor(mc), mc, seed, startX, startZ);
     return placer.run();
 }
 

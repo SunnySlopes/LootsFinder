@@ -117,7 +117,7 @@ public:
 
 private:
     friend struct DataBuilder;
-    friend const Data &data263();
+    friend const Data &dataShared();
 
     bool available_ = false;
     std::vector<TemplateData> templates_;
@@ -129,7 +129,17 @@ private:
 };
 
 /** The compiled-in 26.3 data (empty/inert when the generated header is absent). */
-const Data &data263();
+const Data &dataShared();
+
+/**
+ * Jigsaw data for a cubiomes MC_* version id.
+ *
+ * The 1.20.1 through 26.3 jars carry identical bastion/trail-ruins/outpost
+ * template, pool and structure data (verified with
+ * tools/compare_jigsaw_versions.py).  Older versions keep the historical 26.3
+ * fallback until their own snapshot is extracted.
+ */
+const Data &dataFor(int mc);
 
 } // namespace jigsaw
 } // namespace loots

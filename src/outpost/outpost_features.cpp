@@ -21,7 +21,7 @@ Assembly assembleOutpost(int mc, uint64_t seed, int x, int z)
     config.projectStartToHeightmap = true; // project_start_to_heightmap
     config.useExpansionHack = true;        // use_expansion_hack
 
-    const auto &data = jigsaw::data263();
+    const auto &data = jigsaw::dataFor(mc);
     if (!data.available()) return out;
 
     const auto placement = jigsaw::placeJigsaw(config, mc, seed, x, z);

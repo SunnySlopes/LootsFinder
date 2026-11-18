@@ -17,13 +17,13 @@ namespace loots {
 bool ancientCityLayout(int mc, uint64_t seed, int x, int z,
                        std::vector<AncientCityPiece> &out);
 
-/** Exact 26.3 WORLD_SURFACE_WG height (y + 1 of the first non-air block). */
+/** Version-aware WORLD_SURFACE_WG height (y + 1 of the first non-air block). */
 int worldSurfaceHeight(int mc, uint64_t seed, int x, int z);
 
-/** Exact 26.3 OCEAN_FLOOR_WG height (y + 1 of the first blocking block). */
+/** Version-aware OCEAN_FLOOR_WG height (y + 1 of the first blocking block). */
 int worldOceanFloorHeight(int mc, uint64_t seed, int x, int z);
 
-/** Exact 26.3 terrain solidity, including carvers but without structure beards. */
+/** Version-aware terrain solidity, including carvers but without structure beards. */
 bool worldSolid(int mc, uint64_t seed, int x, int y, int z);
 
 /** Density-only solidity before carvers. */

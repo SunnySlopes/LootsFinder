@@ -135,10 +135,11 @@ includes and is gitignored.
 | file | source | committed |
 |---|---|---|
 | `data/loot_tables.hpp` | client jar loot_table/** | yes |
+| `data/stronghold_loot_tables.hpp` | shared 1.20+ stronghold library/corridor/crossing tables | yes |
 | `data/loot_tables_26_3.hpp` | 26.3 loot-table band | yes |
 | `data/chest_layouts.hpp` | structure .nbt templates | yes |
 | `data/jigsaw_templates.hpp` | ancient-city template/pool subset | yes |
-| `data/jigsaw_26_3.hpp` | full 26.3 jigsaw data (bastion / trail / outpost) | yes |
+| `data/jigsaw_data.hpp` | full jigsaw data shared by 1.20.1-26.3 | yes |
 | `data/enchantments.hpp` | enchantment tables | yes |
 | `data/mansion_templates.hpp` | woodland mansion templates | yes |
 | `data/trail_ruins*.hpp` | trail ruins templates | yes |
@@ -149,6 +150,8 @@ Regenerate (the extraction tools are local-only and gitignored):
 
 ```
 python tools/extract_loot_tables.py --out data
+python tools/extract_loot_tables_v2.py --out data
+python tools/extract_loot_tables_v2.py --out data --only-stronghold
 python tools/extract_chest_layouts.py --structure-dir <structure/> --out data
 python tools/extract_chest_layouts.py --jar %APPDATA%/.minecraft/versions/26.3/26.3.jar --out data
 python tools/extract_jigsaw.py --jar %APPDATA%/.minecraft/versions/26.3/26.3.jar --out data
@@ -170,11 +173,11 @@ The module owns the 26.3 ancient-city layout and exact terrain queries, so
 |---|---|---|
 | ocean monument sponge rooms | done | done |
 | ancient city (ward/silence/swift sneak/golden apple) | done via built-in layout | done |
-| pillager outpost allay | done (shared exact JigsawPlacement + exact WORLD_SURFACE_WG) | done |
-| ocean ruin sniffer egg | done for 26.3 (single-piece exact; multi-piece height approximate) | done |
+| pillager outpost allay | done for 1.19.2-26.3 (shared exact JigsawPlacement + version-aware WORLD_SURFACE_WG) | done |
+| ocean ruin sniffer egg | done for 1.20.1-26.3 (shared templates/chest data; warm suspicious sand exact) | done |
 | woodland mansion vex trim | done | done |
-| trail ruins 4 trims | done (exact height + RuleProcessor/CappedProcessor/AppendLoot) | done |
-| bastion snout / netherite / outline | done (shared exact JigsawPlacement; exact piece/chest Y) | done |
+| trail ruins 4 trims | done for 1.20.1-26.3 (exact height + RuleProcessor/CappedProcessor/AppendLoot) | done |
+| bastion snout / netherite / outline | done for 1.20.1-26.3 (shared exact JigsawPlacement; exact piece/chest Y) | done |
 | bastion piglin banner pattern | done (exact `bastion_other` chests) | done |
 | desert pyramid dune / golden apple | done (hint) | done |
 | jungle temple wild trim | done (hint) | done |
@@ -182,7 +185,7 @@ The module owns the 26.3 ancient-city layout and exact terrain queries, so
 | end city spire trim | done | done |
 | pillager outpost sentry trim | done (hint) | done |
 | shipwreck coast trim | done (hint) | done |
-| stronghold library eye trim | done (exact X/Z) | done |
+| stronghold library eye trim | done for 1.18-26.3 (exact X/Z; versioned library tables) | done |
 | stronghold End portal room | done (exact X/Z/Y via `strongholdPortalAt`) | done |
 
 Consumers must tolerate `exists = false` and empty result vectors. The Java
@@ -195,11 +198,21 @@ Consumers must tolerate `exists = false` and empty result vectors. The Java
 
 ## Jigsaw accuracy
 
-Bastion remnants, trail ruins, and pillager-outpost allay cages now use the
-single shared exact port of 26.3 `JigsawPlacement.addPieces` / `Placer` in
-`src/jigsaw/`. It covers `single` / `list` / `empty` pool elements, fallbacks,
-weights, placement/selection priorities, the sequenced priority queue, the
-expansion hack, junctions, and exact `WORLD_SURFACE_WG` heights.
+Bastion remnants, trail ruins, and pillager-outpost allay cages use the single
+shared exact port of `JigsawPlacement.addPieces` / `Placer` in `src/jigsaw/`.
+It covers `single` / `list` / `empty` pool elements, fallbacks, weights,
+placement/selection priorities, the sequenced priority queue, the expansion
+hack, junctions, and exact `WORLD_SURFACE_WG` heights.
+
+Version coverage: the 1.20.1, 1.21.1, 1.21.4, 1.21.10, 26.1.2, 26.2 and 26.3
+jars carry **identical** bastion/trail-ruins/outpost template, pool and structure
+data (verified with `tools/compare_jigsaw_versions.py`; only the outpost
+spawn-override serialization differs). The shared data is therefore used for
+every version from 1.20.1 through 26.3, while `worldgen` selects the matching
+terrain profile (1.20-1.21.4, 1.21.9-26.2, 26.3). 1.19.2 has the same outpost
+templates, code-defined pools and `JigsawStructure` config; its allay-cage
+placement is validated against the real 1.19.2 jar fixtures and uses generation
+profile -3.
 
 The generated data (`tools/extract_jigsaw.py`) is derived from the 26.3 jar and
 the regression expectations in `tests/jigsaw_fixtures.hpp` are generated from
@@ -207,8 +220,10 @@ the real 26.3 Java oracle by `tools/generate_jigsaw_fixtures.py`. The suite
 covers 15 bastion starts (13 treasure variants), 6 outposts with and without
 allays, and 6 trail-ruin starts, comparing every piece
 origin/rotation/bounds, every chest coordinate and loot seed, allay cages, and
-every suspicious block with its trim result. The same oracle comparison also
-validated 14 outpost starts.
+every suspicious block with its trim result. `loots-multiversiontest` additionally
+replays the real-jar 1.19.2 outpost and 1.20.1/1.21.10/1.21.11 outpost and
+trail-ruins fixtures on all supported cubiomes version ids, and checks that the
+bastion piece graph and chest coordinates are version-independent.
 
 ## Versions
 

@@ -170,7 +170,7 @@ LayoutEngine::LayoutEngine(int generation, uint64_t seed)
       biomes_(generation < 5 ? geode_biomes_create(seed) : nullptr, geode_biomes_free),
       aliases_(tables_.data.pools.size()), rejected_(tables_.data.templates.size()) {
     if (generation >= 5)
-        climate263_ = std::make_unique<Climate263>(seed);
+        climate_modern_ = std::make_unique<ClimateModern>(seed);
     parents_.reserve(64);
     connectors_.reserve(64);
     candidates_.reserve(128);
@@ -269,8 +269,8 @@ Chamber LayoutEngine::generate(int cx, int cz) {
     auto root_box = root.box;
     Chamber result;
     result.biome_position = biome_pos;
-    bool outside_deep_dark = climate263_
-                                 ? climate263_->allowed(floor_div(biome_pos.x, 4) * 4, floor_div(biome_pos.y, 4) * 4,
+    bool outside_deep_dark = climate_modern_
+                                 ? climate_modern_->allowed(floor_div(biome_pos.x, 4) * 4, floor_div(biome_pos.y, 4) * 4,
                                                         floor_div(biome_pos.z, 4) * 4)
                                  : geode_biomes_allowed(biomes_.get(), floor_div(biome_pos.x, 4),
                                                         floor_div(biome_pos.y, 4), floor_div(biome_pos.z, 4));

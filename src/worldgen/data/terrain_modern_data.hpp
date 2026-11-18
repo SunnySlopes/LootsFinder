@@ -1,6 +1,6 @@
 // 26.3派生系数与原生算子图，不包含官方资源。
 #pragma once
-namespace geode::terrain263_data {
+namespace geode::terrain_modern_data {
 inline const std::vector<Node> nodes={
 {Op::YGradient,-1,-1,-1,-1,-64.0,-40.0,0.0,1.0},
 {Op::Constant,-1,-1,-1,-1,0.1171875,0.0,0.0,0.0},

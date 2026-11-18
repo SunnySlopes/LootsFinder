@@ -35,11 +35,11 @@ jigsaw::JigsawConfig configForPool(const char *startPool, int maxDepth)
 
 } // namespace
 
-bool hasJigsawData() { return jigsaw::data263().available(); }
+bool hasJigsawData() { return jigsaw::dataShared().available(); }
 
 void jigsawStats(int &templates, int &connectors, int &poolEntries)
 {
-    const auto &data = jigsaw::data263();
+    const auto &data = jigsaw::dataShared();
     templates = data.templateCount();
     connectors = data.blockCount();
     poolEntries = data.poolCount();
@@ -50,7 +50,7 @@ JigsawAssembly assembleStructure(const char *startPool, int mc, uint64_t seed, i
 {
     JigsawAssembly out;
     out.startPool = startPool ? startPool : "";
-    const auto &data = jigsaw::data263();
+    const auto &data = jigsaw::dataFor(mc);
     out.dataAvailable = data.available();
     if (!out.dataAvailable || !startPool) return out;
 

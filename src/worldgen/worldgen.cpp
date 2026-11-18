@@ -13,22 +13,51 @@ namespace {
 std::mutex g_terrainMu;
 std::unique_ptr<loots_wg::Terrain> g_terrain;
 uint64_t g_terrainSeed = 0;
+int g_terrainGeneration = -1000;
 
-loots_wg::Terrain &terrainFor(uint64_t seed)
+/**
+ * Cubiomes MC_* id -> geode/loots terrain generation profile.
+ *
+ * Mirrors tools/geode/src/search.cpp set_version():
+ *   1.19.2                 -> -3
+ *   1.19.4                 -> 0
+ *   1.20.x                 -> 0
+ *   1.21.0/1.21.1          -> 1
+ *   1.21.2 .. 1.21.8       -> 2
+ *   1.21.9+ / 26.1 / 26.2  -> 4
+ *   26.3                    -> 5
+ * The pre-generated terrain_data.hpp covers <= 26.2 and terrain_modern_data.hpp
+ * covers 26.3; the remaining values select version-specific aquifer branches.
+ */
+int terrainGenerationForMc(int mc)
 {
-    if (!g_terrain || g_terrainSeed != seed) {
-        g_terrain = std::make_unique<loots_wg::Terrain>(seed, 5);
+    if (mc >= 35) return 5; // 26.3
+    if (mc >= 31) return 4; // 1.21.9+ / 26.1 / 26.2
+    if (mc >= 27) return 2; // 1.21.2 .. 1.21.8
+    if (mc >= 26) return 1; // 1.21.0 / 1.21.1
+    if (mc >= 25) return 0; // 1.20.x
+    if (mc == 23) return -3; // 1.19.2
+    if (mc == 24) return 0;  // 1.19.4
+    return 5;                // legacy callers keep the previous 26.3 profile
+}
+
+loots_wg::Terrain &terrainFor(int mc, uint64_t seed)
+{
+    const int generation = terrainGenerationForMc(mc);
+    if (!g_terrain || g_terrainSeed != seed || g_terrainGeneration != generation) {
+        g_terrain = std::make_unique<loots_wg::Terrain>(seed, generation);
         g_terrainSeed = seed;
+        g_terrainGeneration = generation;
     }
     return *g_terrain;
 }
 
 } // namespace
 
-int worldSurfaceHeight(int /*mc*/, uint64_t seed, int x, int z)
+int worldSurfaceHeight(int mc, uint64_t seed, int x, int z)
 {
     std::lock_guard<std::mutex> lock(g_terrainMu);
-    return terrainFor(seed).height_world_surface(x, z);
+    return terrainFor(mc, seed).height_world_surface(x, z);
 }
 
 int worldOceanFloorHeight(int mc, uint64_t seed, int x, int z)
@@ -40,22 +69,22 @@ int worldOceanFloorHeight(int mc, uint64_t seed, int x, int z)
     return -64;
 }
 
-bool worldSolid(int /*mc*/, uint64_t seed, int x, int y, int z)
+bool worldSolid(int mc, uint64_t seed, int x, int y, int z)
 {
     std::lock_guard<std::mutex> lock(g_terrainMu);
-    return terrainFor(seed).solid(x, y, z);
+    return terrainFor(mc, seed).solid(x, y, z);
 }
 
-bool worldBaseSolid(int /*mc*/, uint64_t seed, int x, int y, int z)
+bool worldBaseSolid(int mc, uint64_t seed, int x, int y, int z)
 {
     std::lock_guard<std::mutex> lock(g_terrainMu);
-    return terrainFor(seed).base_solid(x, y, z);
+    return terrainFor(mc, seed).base_solid(x, y, z);
 }
 
-double worldBeard(int /*mc*/, uint64_t seed, int x, int y, int z)
+double worldBeard(int mc, uint64_t seed, int x, int y, int z)
 {
     std::lock_guard<std::mutex> lock(g_terrainMu);
-    return terrainFor(seed).beard(x, y, z);
+    return terrainFor(mc, seed).beard(x, y, z);
 }
 
 bool ancientCityLayout(int mc, uint64_t seed, int x, int z,

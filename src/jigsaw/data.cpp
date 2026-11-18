@@ -7,9 +7,9 @@
 #include "loots/transform.h"
 
 #if defined(__has_include)
-#if __has_include("jigsaw_26_3.hpp")
-#define LOOTS_HAS_JIGSAW_263_DATA 1
-#include "jigsaw_26_3.hpp"
+#if __has_include("jigsaw_data.hpp")
+#define LOOTS_HAS_JIGSAW_DATA 1
+#include "jigsaw_data.hpp"
 #endif
 #endif
 
@@ -92,7 +92,7 @@ Box templateBoundingBox(const TemplateData &t, const Vec3 &origin, int rotation)
     return {{box.minX, origin.y, box.minZ}, {box.maxX, origin.y + t.sy - 1, box.maxZ}};
 }
 
-#ifdef LOOTS_HAS_JIGSAW_263_DATA
+#ifdef LOOTS_HAS_JIGSAW_DATA
 
 namespace {
 
@@ -368,10 +368,21 @@ std::vector<JigsawBlockData> Data::shuffledJigsawBlocks(int elementIndex, const 
     return result;
 }
 
-const Data &data263()
+const Data &dataShared()
 {
     static const Data data = DataBuilder::build();
     return data;
+}
+
+const Data &dataFor(int mc)
+{
+    // 1.20.1 (25) through 26.3 (35): all bastion/trail-ruins/outpost jigsaw
+    // inputs are byte-identical; only the outpost spawn-override serialization
+    // differs.  1.19.2 (23) has the same outpost templates/pools/config (the
+    // pools are code-defined there), so it also uses this data.  Older versions
+    // keep the historical fallback until a snapshot is extracted.
+    (void) mc;
+    return dataShared();
 }
 
 } // namespace jigsaw

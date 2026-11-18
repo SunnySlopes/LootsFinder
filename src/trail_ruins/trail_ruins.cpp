@@ -149,7 +149,7 @@ bool trailRuinsLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out)
     out.kind = "trail_ruins";
     if (mc < 25 || mc > 35) return false;
 
-    const auto &data = jigsaw::data263();
+    const auto &data = jigsaw::dataFor(mc);
     if (!data.available()) return false;
 
     jigsaw::JigsawConfig config;

@@ -4,13 +4,13 @@
 #include <utility>
 
 namespace geode_layout {
-class Climate263 {
+class ClimateModern {
     struct Impl;
     std::unique_ptr<Impl> impl_;
 
   public:
-    explicit Climate263(uint64_t seed);
-    ~Climate263();
+    explicit ClimateModern(uint64_t seed);
+    ~ClimateModern();
     std::pair<float, float> sample(int x, int y, int z);
     bool allowed(int x, int y, int z);
 };

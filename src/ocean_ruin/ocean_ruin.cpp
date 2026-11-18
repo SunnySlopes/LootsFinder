@@ -62,6 +62,17 @@ uint64_t suspiciousLootSeed(int x, int y, int z)
     return rng.nextLong();
 }
 
+/** Ocean ruins are two separate surface-step entries (cold=7/warm=8 before
+ *  26.3; 26.3 inserted 18 entries before them -> cold=25/warm=26). */
+uint64_t oceanRuinLootSeed(int mc, uint64_t seed, int x, int z, bool warm)
+{
+    if (mc >= 24 && mc <= 35) {
+        const int index = mc >= 35 ? (warm ? 26 : 25) : (warm ? 8 : 7);
+        return loots_structure_loot_seed_index(mc, seed, x, z, 4, index);
+    }
+    return loots_structure_loot_seed(mc, seed, x, z, 6);
+}
+
 template <typename Rng>
 void shuffle(Rng &rng, std::vector<uint16_t> &values)
 {
@@ -332,7 +343,7 @@ bool oceanRuinLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out)
             auto it = postRngs.find(key);
             if (it == postRngs.end()) {
                 it = postRngs.emplace(key, PostProcessRandom(
-                    mc, loots_structure_loot_seed(mc, seed, chest.x, chest.z, 6))).first;
+                    mc, oceanRuinLootSeed(mc, seed, chest.x, chest.z, warm))).first;
             }
             chest.lootSeed = it->second.nextLong();
             out.chests.push_back(std::move(chest));

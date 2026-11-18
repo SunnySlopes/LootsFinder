@@ -551,7 +551,7 @@ int cmdJigsawDebug(const std::vector<std::string> &flags)
     const auto placement = loots::jigsaw::placeJigsaw(
         config, static_cast<int>(mc), static_cast<uint64_t>(seed), static_cast<int>(x),
         static_cast<int>(z));
-    const auto &data = loots::jigsaw::data263();
+    const auto &data = loots::jigsaw::dataFor(static_cast<int>(mc));
     std::printf("{\n  \"kind\": \"%s\", \"exists\": %s,\n", kind.c_str(),
                 jsonBool(placement.exists));
     std::printf("  \"center\": { \"x\": %d, \"y\": %d, \"z\": %d },\n", placement.centerX,
@@ -602,9 +602,9 @@ int cmdOutpost(const std::vector<std::string> &flags)
         if (c.reward.trim) hasAny = true;
     }
     std::printf("{\n  \"exists\": %s, \"hasAllay\": %s, \"allayEvaluated\": %s, \"allayCages\": %d, "
-                "\"chests\": %zu, \"hasTrim\": %s,\n",
+                "\"pieces\": %d, \"chests\": %zu, \"hasTrim\": %s,\n",
                 jsonBool(o.exists), jsonBool(o.hasAllay), jsonBool(o.allayEvaluated), o.allayCages,
-                o.chests.size(), jsonBool(hasAny));
+                o.pieces, o.chests.size(), jsonBool(hasAny));
     std::printf("  \"list\": [\n");
     for (size_t i = 0; i < o.chests.size(); i++) {
         const auto &c = o.chests[i];

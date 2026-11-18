@@ -39,7 +39,7 @@ bool bastionLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out)
     out.z = z;
     out.kind = "bastion";
 
-    const auto &data = jigsaw::data263();
+    const auto &data = jigsaw::dataFor(mc);
     if (!data.available()) return false;
 
     const auto placement = jigsaw::placeJigsaw(bastionConfig(), mc, seed, x, z);
