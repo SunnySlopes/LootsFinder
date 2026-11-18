@@ -103,6 +103,7 @@ src/outpost/                 pillager outpost + allay features
 src/woodland_mansion/        woodland mansion rooms / chests
 src/ocean_ruin/         ocean ruin chests
 src/trail_ruins/             trail ruins processor + suspicious gravel
+src/trial_chambers/          trial-chamber decorated pots (Creator music box)
 src/shipwreck/               shipwreck
 src/desert_jungle/           desert pyramid + jungle temple
 src/stronghold/              stronghold 1.18 simulator (moved from third_party)
@@ -138,6 +139,7 @@ includes and is gitignored.
 | `data/stronghold_loot_tables.hpp` | shared 1.20+ stronghold library/corridor/crossing tables | yes |
 | `data/loot_tables_26_3.hpp` | 26.3 loot-table band | yes |
 | `data/chest_layouts.hpp` | structure .nbt templates | yes |
+| `data/trial_pots.hpp` | trial-chamber template names + pot/container offsets | yes |
 | `data/jigsaw_templates.hpp` | ancient-city template/pool subset | yes |
 | `data/jigsaw_data.hpp` | full jigsaw data shared by 1.20.1-26.3 | yes |
 | `data/enchantments.hpp` | enchantment tables | yes |
@@ -154,6 +156,7 @@ python tools/extract_loot_tables_v2.py --out data
 python tools/extract_loot_tables_v2.py --out data --only-stronghold
 python tools/extract_chest_layouts.py --structure-dir <structure/> --out data
 python tools/extract_chest_layouts.py --jar %APPDATA%/.minecraft/versions/26.3/26.3.jar --out data
+python tools/extract_trial_pots.py --out data
 python tools/extract_jigsaw.py --jar %APPDATA%/.minecraft/versions/26.3/26.3.jar --out data
 python tools/generate_jigsaw_fixtures.py --java "C:/Program Files/Zulu/zulu-25/bin/java.exe"
 ```
@@ -187,14 +190,18 @@ The module owns the 26.3 ancient-city layout and exact terrain queries, so
 | shipwreck coast trim | done (hint) | done |
 | stronghold library eye trim | done for 1.18-26.3 (exact X/Z; versioned library tables) | done |
 | stronghold End portal room | done (exact X/Z/Y via `strongholdPortalAt`) | done |
+| 6 non-renewable music discs (Pigstep, Otherside, 5 fragments, Relic, Bounce, Creator) | done: `discKinds`/`discFragments` on chests and pots; Bounce is gated by `sulfur_caves` | 26.3 oracle for pots |
+| abandoned mineshaft layer | geode port for 1.21.10+ (`src/mineshaft/mineshaft_gen.*`, exact pieces/`dy`; 4/6 chests match 26.3 oracle, still `approximate = true`) | partial 26.3 oracle |
+| trial-chamber decorated pots | done for 1.21+ (`trialChamberPots()`, exact position/template/LootTableSeed) | done |
 
 Consumers must tolerate `exists = false` and empty result vectors. The Java
 26.3 backend is the oracle; it is not linked into the portable host.
 
 ## TODO
 
-1. Add display for the 7 non-renewable music discs.
-2. Add display for the 23 pottery sherds.
+1. Add display for the 23 pottery sherds.
+2. Finish the `MineshaftCorridor.generate` block-state replay (support ceiling,
+   liquids/`cannotGenerate`, floor/rails) so the 4/6 oracle chests become 6/6.
 
 ## Jigsaw accuracy
 

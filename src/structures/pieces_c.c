@@ -209,6 +209,69 @@ int loots_shipwreck_pieces(int mc, unsigned long long seed, int x, int z,
     return generate_biome(mc, seed, x, z, Shipwreck, biome, &sv, out);
 }
 
+int loots_mineshaft_pieces(int mc, unsigned long long seed, int x, int z,
+                           loots_piece_result *out)
+{
+    StructureSaltConfig ssconf;
+    StructureVariant sv;
+    int biome, i, n;
+    if (!out) return 0;
+    /* The salt depends on the mesa biome category, so the surface biome is the
+     * right input here.  Chest Y (below) is the piece floor and is only used to
+     * sample the biome for entry conditions such as sulfur_caves. */
+    biome = loots_biome_exact(mc, seed, x, z);
+    if (biome < 0 || !getStructureSaltConfig(Mineshaft, mc, biome, &ssconf))
+        return 0;
+    memset(&sv, 0, sizeof(sv));
+    memset(g_pieces, 0, sizeof(g_pieces));
+    n = getStructurePieces(g_pieces, FORTRESS_MAX_PIECES, Mineshaft, ssconf, &sv,
+                           mc, seed, x, z);
+    if (n <= 0) return 0;
+
+    memset(out, 0, sizeof(*out));
+    out->exists = 1;
+    out->pieces = n;
+    out->min_x = out->min_z = 0x7fffffff;
+    out->min_y = 0x7fffffff;
+    out->max_x = out->max_z = -0x7fffffff;
+    out->max_y = -0x7fffffff;
+    for (i = 0; i < n; i++) {
+        const Piece *p = &g_pieces[i];
+        int c;
+        if (p->bb0.x < out->min_x) out->min_x = p->bb0.x;
+        if (p->bb0.y < out->min_y) out->min_y = p->bb0.y;
+        if (p->bb0.z < out->min_z) out->min_z = p->bb0.z;
+        if (p->bb1.x > out->max_x) out->max_x = p->bb1.x;
+        if (p->bb1.y > out->max_y) out->max_y = p->bb1.y;
+        if (p->bb1.z > out->max_z) out->max_z = p->bb1.z;
+
+        for (c = 0; c < p->chestCount && c < 4; c++) {
+            loots_piece_chest *dst;
+            if (!p->lootTables[c] || !p->lootTables[c][0]) continue;
+            if (out->chest_count >= LOOTS_PIECE_MAX_CHESTS) break;
+            dst = &out->chests[out->chest_count++];
+            dst->x = p->chestPoses[c].x;
+            /* cubiomes has no chest Y for mineshafts; the corridor floor is at
+             * the piece's minimum Y, which is accurate enough for biome
+             * sampling (chests sit on that floor). */
+            dst->y = p->bb0.y + 1;
+            dst->z = p->chestPoses[c].z;
+            dst->seed = p->lootSeeds[c];
+            snprintf(dst->table, LOOTS_TABLE_NAME_MAX, "%s", p->lootTables[c]);
+            snprintf(dst->template_name, LOOTS_TABLE_NAME_MAX, "%s",
+                     p->name ? p->name : "");
+        }
+    }
+    return 1;
+}
+
+int loots_mineshaft_type(int mc, unsigned long long seed, int x, int z)
+{
+    const int biome = loots_biome_exact(mc, seed, x, z);
+    if (biome < 0) return 0;
+    return getCategory(mc, biome) == mesa ? 1 : 0;
+}
+
 /* java.util.Random's nextLong(), used by WorldgenRandom.setLargeFeatureSeed().
  * This is deliberately NOT getPopulationSeed(): the latter is the 1.18+
  * Xoroshiro decoration seed and is a different value. */
@@ -313,6 +376,20 @@ int loots_biome_exact(int mc, unsigned long long seed, int x, int z)
         genSeed = seed;
     }
     return getBiomeAt(&gen, 1, x, 63, z);
+}
+
+int loots_biome_exact_y(int mc, unsigned long long seed, int x, int y, int z)
+{
+    static Generator gen;
+    static int genMc = -1;
+    static unsigned long long genSeed = 0;
+    if (genMc != mc || genSeed != seed) {
+        setupGenerator(&gen, mc, 0);
+        applySeed(&gen, DIM_OVERWORLD, seed);
+        genMc = mc;
+        genSeed = seed;
+    }
+    return getBiomeAt(&gen, 1, x, y, z);
 }
 
 int loots_surface_height(int mc, unsigned long long seed, int x, int z)

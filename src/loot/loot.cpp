@@ -10,6 +10,7 @@
 #include "loot_tables_26_3.hpp"
 #include "stronghold_loot_tables.hpp"
 #include "loots/rng.h"
+#include "util.h"
 
 namespace loots {
 namespace {
@@ -19,7 +20,16 @@ struct TableData {
     const data::Pool *pools;
     const data::Entry *entries;
     const data::Op *ops;
+    const data::Condition *conditions;
 };
+
+bool tableNameMatches(const char *tableName, const char *full, const char *shortName)
+{
+    if (std::strcmp(full, tableName) == 0) return true;
+    const char *slash = std::strrchr(full, '/');
+    const char *tableShort = slash ? slash + 1 : full;
+    return std::strcmp(tableShort, shortName) == 0;
+}
 
 TableData findTable(const char *name, int mc)
 {
@@ -28,20 +38,21 @@ TableData findTable(const char *name, int mc)
     const char *shortName = slash ? slash + 1 : name;
     if (mc == 35 || mc < 0) {
         for (const auto &table : data263::kTables) {
-            if (std::strcmp(table.name, shortName) == 0)
-                return {&table, data263::kPools, data263::kEntries, data263::kOps};
+            if (tableNameMatches(name, table.name, shortName))
+                return {&table, data263::kPools, data263::kEntries, data263::kOps,
+                        data263::kConditions};
         }
     }
     for (const auto &table : data_stronghold::kTables) {
-        if (std::strcmp(table.name, shortName) != 0) continue;
+        if (!tableNameMatches(name, table.name, shortName)) continue;
         if (mc < 0 || (mc >= table.mcLo && mc <= table.mcHi))
             return {&table, data_stronghold::kPools, data_stronghold::kEntries,
-                    data_stronghold::kOps};
+                    data_stronghold::kOps, nullptr};
     }
     for (const auto &table : data::kTables) {
-        if (std::strcmp(table.name, shortName) != 0) continue;
+        if (!tableNameMatches(name, table.name, shortName)) continue;
         if (mc < 0 || (mc >= table.mcLo && mc <= table.mcHi))
-            return {&table, data::kPools, data::kEntries, data::kOps};
+            return {&table, data::kPools, data::kEntries, data::kOps, data::kConditions};
     }
     // Do not silently use another version's table; a missing band means the
     // structure/feature is not available in this version.
@@ -98,6 +109,57 @@ int rollCount(LegacyRandom &rng, int lo, int hi)
 {
     if (hi <= lo) return lo;
     return lo + rng.nextInt(hi - lo + 1);
+}
+
+/** True when `biome` (cubiomes id) is one of the comma-separated names. */
+bool biomeMatches(int mc, int biome, const char *names)
+{
+    if (biome < 0 || !names) return false;
+    const char *current = biome2str(mc, biome);
+    if (!current) return false;
+    const char *p = names;
+    while (*p) {
+        const char *comma = std::strchr(p, ',');
+        const size_t len = comma ? static_cast<size_t>(comma - p) : std::strlen(p);
+        if (len == std::strlen(current) && std::strncmp(p, current, len) == 0) return true;
+        if (!comma) break;
+        p = comma + 1;
+    }
+    return false;
+}
+
+/**
+ * Entry-level condition gate, evaluated before the weighted pick.
+ *
+ * `unknown` is set for a condition kind we cannot model; the whole chest then
+ * reports `evaluated = false` instead of silently dropping a possible item.
+ * A biome-gated entry without biome context is simply not eligible: callers
+ * without biome data must not report it.
+ */
+bool entryAllowed(const TableData &tables, const data::Entry &entry, int mc,
+                  const LootContext &context, bool &unknown)
+{
+    if (entry.condCount == 0) return true;
+    if (!tables.conditions) {
+        unknown = true;
+        return false;
+    }
+    for (int i = 0; i < entry.condCount; i++) {
+        const data::Condition &condition =
+            tables.conditions[entry.firstCond + static_cast<uint16_t>(i)];
+        switch (condition.type) {
+        case data::ConditionType::none:
+            break;
+        case data::ConditionType::biome:
+            if (!biomeMatches(mc, context.biome, condition.arg)) return false;
+            break;
+        case data::ConditionType::unsupported:
+        default:
+            unknown = true;
+            return false;
+        }
+    }
+    return true;
 }
 
 bool listHas(const char *const *list, int count, const char *name)
@@ -285,7 +347,8 @@ bool hasLootTable(const char *tableName, int mc)
     return findTable(tableName, mc).table != nullptr;
 }
 
-ChestReward evaluateChest(const char *tableName, uint64_t lootSeed, int mc)
+ChestReward evaluateChest(const char *tableName, uint64_t lootSeed, int mc,
+                          const LootContext &context)
 {
     ChestReward out;
     if (mc == 35 && lootSeed == 0) return out;
@@ -300,7 +363,13 @@ ChestReward evaluateChest(const char *tableName, uint64_t lootSeed, int mc)
         const data::Pool &pool = tables.pools[table->first + p];
         const int rolls = rollCount(rng, pool.rollMin, pool.rollMax);
         int totalWeight = 0;
-        for (int i = 0; i < pool.count; i++) totalWeight += tables.entries[pool.first + i].weight;
+        for (int i = 0; i < pool.count; i++) {
+            const data::Entry &candidate = tables.entries[pool.first + i];
+            if (entryAllowed(tables, candidate, mc, context, unknown))
+                totalWeight += candidate.weight;
+            if (unknown) break;
+        }
+        if (unknown) break;
         if (totalWeight <= 0) continue;
 
         for (int r = 0; r < rolls && !unknown; r++) {
@@ -308,12 +377,17 @@ ChestReward evaluateChest(const char *tableName, uint64_t lootSeed, int mc)
             const data::Entry *entry = nullptr;
             for (int i = 0; i < pool.count; i++) {
                 const data::Entry &candidate = tables.entries[pool.first + i];
+                if (!entryAllowed(tables, candidate, mc, context, unknown)) {
+                    if (unknown) break;
+                    continue;
+                }
                 pick -= candidate.weight;
                 if (pick < 0) {
                     entry = &candidate;
                     break;
                 }
             }
+            if (unknown) break;
             if (!entry) continue;
 
             int count = 1;
@@ -388,11 +462,29 @@ ChestReward evaluateChest(const char *tableName, uint64_t lootSeed, int mc)
 
             if (swiftSneak) out.swiftSneakLevels.push_back(swiftSneakLevel);
             switch (entry->kind) {
-            case data::ItemKind::enchanted_golden_apple: out.goldenApples += count; break;
-            case data::ItemKind::sniffer_egg: out.snifferEgg = true; break;
+            case data::ItemKind::enchanted_golden_apple:
+                out.goldenApples += count;
+                out.miscKinds |= LootMisc_EnchantedGoldenApple;
+                break;
+            case data::ItemKind::sniffer_egg:
+                out.snifferEgg = true;
+                out.miscKinds |= LootMisc_SnifferEgg;
+                break;
             case data::ItemKind::netherite_upgrade: out.netheriteUpgrade = true; break;
             case data::ItemKind::piglin_banner:
-                out.itemKinds |= LootItem_PiglinBanner;
+                out.itemKinds |= LootItem_PiglinBanner; // deprecated mirror
+                out.miscKinds |= LootMisc_PiglinBanner;
+                break;
+            case data::ItemKind::disc_pigstep: out.discKinds |= LootDisc_Pigstep; break;
+            case data::ItemKind::disc_otherside: out.discKinds |= LootDisc_Otherside; break;
+            case data::ItemKind::disc_relic: out.discKinds |= LootDisc_Relic; break;
+            case data::ItemKind::disc_creator_music_box:
+                out.discKinds |= LootDisc_CreatorMusicBox;
+                break;
+            case data::ItemKind::disc_bounce: out.discKinds |= LootDisc_Bounce; break;
+            case data::ItemKind::disc_fragment_5:
+                out.discKinds |= LootDisc_Fragment5;
+                out.discFragments = static_cast<uint16_t>(out.discFragments + count);
                 break;
             default:
                 if (trackedTrim(entry->kind)) {

@@ -96,6 +96,8 @@ public:
     int nextInt(int bound);
     uint64_t nextLong();
     float nextFloat();
+    /** java.util.Random.nextBoolean() (one raw Xoroshiro draw, low bit). */
+    bool nextBoolean();
     bool isXoroshiro() const { return xor_; }
 
 private:

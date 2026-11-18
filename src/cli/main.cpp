@@ -29,6 +29,7 @@
 #include "loots/ocean_ruin.h"
 #include "loots/woodland_mansion.h"
 #include "loots/trail_ruins.h"
+#include "loots/trial_chambers.h"
 #include "ancient_geode.h"
 #include "pieces_c.h"
 #include "stronghold_cmd.h"
@@ -50,6 +51,8 @@ void usage()
         "  loots-cli chest        --table <name> [--seed <n>] [--mc <id>]\n"
         "  loots-cli fortress     --mc <id> --seed <n> --x <n> --z <n>\n"
         "  loots-cli end-city     --mc <id> --seed <n> --x <n> --z <n>\n"
+        "  loots-cli mineshaft    --mc <id> --seed <n> --x <n> --z <n>\n"
+        "  loots-cli trial-pots   --mc <id> --seed <n> --x <n> --z <n>\n"
         "  loots-cli desert-pyramid --mc <id> --seed <n> --x <n> --z <n>\n"
         "  loots-cli jungle-temple  --mc <id> --seed <n> --x <n> --z <n>\n"
         "  loots-cli jigsaw-debug --kind bastion|trail-ruins|outpost --seed <n> --x <n> --z <n>\n"
@@ -266,9 +269,11 @@ int cmdChest(const std::vector<std::string> &flags)
     printSwiftSneak(r.swiftSneakLevels);
     std::printf(",\n  \"netheriteUpgrade\": %s,\n"
                 "  \"goldenApples\": %d,\n  \"snifferEgg\": %s,\n"
-                "  \"piglinBanner\": %s\n}\n",
+                "  \"piglinBanner\": %s,\n  \"discKinds\": %u,\n  \"miscKinds\": %u,\n"
+                "  \"discFragments\": %u\n}\n",
                 jsonBool(r.netheriteUpgrade), r.goldenApples, jsonBool(r.snifferEgg),
-                jsonBool(r.hasItem(loots::LootItem_PiglinBanner)));
+                jsonBool(r.hasItem(loots::LootItem_PiglinBanner)), r.discKinds, r.miscKinds,
+                static_cast<unsigned>(r.discFragments));
     return 0;
 }
 
@@ -286,11 +291,14 @@ int printStructureLoot(const loots::StructureLoot &sl, const char *suspiciousSta
         const loots::StructureChest &c = sl.chests[i];
         std::printf("    { \"x\": %d, \"y\": %d, \"z\": %d, \"template\": \"%s\", \"table\": \"%s\", \"lootSeed\": %lld, \"lootSeedU\": %llu, "
                     "\"trim\": %s, \"netherite\": %s, \"goldenApples\": %d, "
-                    "\"snifferEgg\": %s, \"piglinBanner\": %s }%s\n",
+                    "\"snifferEgg\": %s, \"piglinBanner\": %s, \"discKinds\": %u, "
+                    "\"discFragments\": %u, \"approximate\": %s }%s\n",
                     c.x, c.y, c.z, c.templateName.c_str(), c.lootTable.c_str(), static_cast<long long>(c.lootSeed), static_cast<unsigned long long>(c.lootSeed), jsonBool(c.reward.trim),
                     jsonBool(c.reward.netheriteUpgrade), c.reward.goldenApples,
                     jsonBool(c.reward.snifferEgg),
                     jsonBool(c.reward.hasItem(loots::LootItem_PiglinBanner)),
+                    c.reward.discKinds, static_cast<unsigned>(c.reward.discFragments),
+                    jsonBool(c.approximate),
                     i + 1 < sl.chests.size() ? "," : "");
     }
     std::printf("  ],\n");
@@ -339,6 +347,46 @@ int cmdEndCity(const std::vector<std::string> &flags)
                        static_cast<int>(x), static_cast<int>(z), sl);
     sl.evaluate(static_cast<int>(mc));
     return printStructureLoot(sl);
+}
+
+int cmdMineshaft(const std::vector<std::string> &flags)
+{
+    long long mc = 0, seed = 0, x = 0, z = 0;
+    if (!flagValue(flags, "mc", &mc) || !flagValue(flags, "seed", &seed) ||
+        !flagValue(flags, "x", &x) || !flagValue(flags, "z", &z)) {
+        std::fputs("mineshaft needs --mc --seed --x --z\n", stderr);
+        return 2;
+    }
+    loots::StructureLoot sl{};
+    loots::mineshaftLoot(static_cast<int>(mc), static_cast<uint64_t>(seed),
+                         static_cast<int>(x), static_cast<int>(z), sl);
+    sl.evaluate(static_cast<int>(mc));
+    return printStructureLoot(sl);
+}
+
+int cmdTrialPots(const std::vector<std::string> &flags)
+{
+    long long mc = 0, seed = 0, x = 0, z = 0;
+    if (!flagValue(flags, "mc", &mc) || !flagValue(flags, "seed", &seed) ||
+        !flagValue(flags, "x", &x) || !flagValue(flags, "z", &z)) {
+        std::fputs("trial-pots needs --mc --seed --x --z\n", stderr);
+        return 2;
+    }
+    std::vector<loots::TrialPot> pots;
+    const bool ok = loots::trialChamberPots(static_cast<int>(mc), static_cast<uint64_t>(seed),
+                                            static_cast<int>(x) >> 4, static_cast<int>(z) >> 4,
+                                            pots);
+    std::printf("{\n  \"exists\": %s, \"pots\": %zu,\n  \"loot\": [\n", jsonBool(ok), pots.size());
+    for (size_t i = 0; i < pots.size(); i++) {
+        std::printf("    { \"x\": %d, \"y\": %d, \"z\": %d, \"template\": \"%s\", "
+                    "\"table\": \"%s\", \"lootSeed\": %llu }%s\n",
+                    pots[i].x, pots[i].y, pots[i].z, pots[i].templateName.c_str(),
+                    pots[i].lootTable.c_str(),
+                    static_cast<unsigned long long>(pots[i].lootSeed),
+                    i + 1 < pots.size() ? "," : "");
+    }
+    std::printf("  ]\n}\n");
+    return 0;
 }
 
 int cmdSilence(const std::vector<std::string> &flags)
@@ -650,6 +698,8 @@ int main(int argc, char **argv)
     if (cmd == "chest") return cmdChest(flags);
     if (cmd == "fortress") return cmdFortress(flags);
     if (cmd == "end-city") return cmdEndCity(flags);
+    if (cmd == "mineshaft") return cmdMineshaft(flags);
+    if (cmd == "trial-pots") return cmdTrialPots(flags);
     // `underwater-ruin` is kept as a deprecated alias for older scripts.
     if (cmd == "ocean-ruin" || cmd == "underwater-ruin") return cmdOceanRuin(flags);
     if (cmd == "woodland-mansion") return cmdWoodlandMansion(flags);

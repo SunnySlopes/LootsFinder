@@ -84,7 +84,24 @@ struct CityChest {
     std::vector<int> swiftSneakLevels;
     /** Enchanted golden apples in this chest (pool0 entry0, set_count 1..2). */
     int enchantedGoldenApples = 0;
+    /** Music discs/fragments in this chest, see loot.h LootDiscBits. */
+    uint32_t discKinds = 0;
+    /** Banner/egg/golden-apple mask, see loot.h LootMiscBits. */
+    uint32_t miscKinds = 0;
+    /** Total `disc_fragment_5` items in this chest. */
+    uint16_t discFragments = 0;
     uint64_t lootSeed = 0;
+
+    bool hasDisc(uint32_t bit) const { return (discKinds & bit) != 0; }
+    bool hasMisc(uint32_t bit) const { return (miscKinds & bit) != 0; }
+    bool hasTemplate() const { return silence != 0 || ward != 0; }
+    bool hasDisc() const { return discKinds != 0; }
+    bool hasMisc() const { return miscKinds != 0; }
+    /** UI category mask: misc / template / disc. */
+    uint32_t categoryMask() const
+    {
+        return (hasMisc() ? 1u : 0u) | (hasTemplate() ? 2u : 0u) | (hasDisc() ? 4u : 0u);
+    }
 };
 
 /** Evaluation result for one ancient city. */

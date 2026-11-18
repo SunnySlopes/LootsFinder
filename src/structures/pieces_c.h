@@ -52,6 +52,13 @@ int loots_jungle_pieces(int mc, unsigned long long seed, int x, int z,
 int loots_shipwreck_pieces(int mc, unsigned long long seed, int x, int z,
                            loots_piece_result *out);
 
+/** Abandoned mineshaft at block (x, z); uses getMineshaftLoot(). */
+int loots_mineshaft_pieces(int mc, unsigned long long seed, int x, int z,
+                           loots_piece_result *out);
+
+/** 0 = normal mineshaft, 1 = mesa mineshaft. */
+int loots_mineshaft_type(int mc, unsigned long long seed, int x, int z);
+
 /** 结构 piece 放置 RNG 的种子：WorldgenRandom.setLargeFeatureSeed()。
  *  这是 legacy java.util.Random 的派生值，不是 1.18+ 的 decoration seed。 */
 unsigned long long loots_structure_rng_seed(int mc, unsigned long long seed,
@@ -71,6 +78,9 @@ int loots_biome_at(int mc, unsigned long long seed, int x, int z);
 
 /** Exact 1:1 biome at a block position (used for beached shipwreck). */
 int loots_biome_exact(int mc, unsigned long long seed, int x, int z);
+
+/** Exact 1:1 biome at an arbitrary Y (used for cave/biome-gated loot). */
+int loots_biome_exact_y(int mc, unsigned long long seed, int x, int y, int z);
 
 /** 1 for warm/lukewarm/deep_lukewarm/deep_warm ocean, 0 for cold. */
 int loots_biome_is_warm_ocean(int mc, unsigned long long seed, int x, int z);

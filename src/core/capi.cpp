@@ -33,6 +33,9 @@ loots_city toC(const loots::CityChestInfo &in)
         out.chests[i].silence = c.silence ? 1 : 0;
         out.chests[i].ward = c.ward ? 1 : 0;
         out.chests[i].golden_apples = c.enchantedGoldenApples;
+        out.chests[i].disc_kinds = c.discKinds;
+        out.chests[i].misc_kinds = c.miscKinds;
+        out.chests[i].disc_fragments = c.discFragments;
         out.chests[i].loot_seed = static_cast<unsigned long long>(c.lootSeed);
     }
     return out;

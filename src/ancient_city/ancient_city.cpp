@@ -121,6 +121,9 @@ std::vector<CityChestInfo> ancientCityChests(int mc, uint64_t seed, uint32_t fla
                 chest.ward = reward.hasTrim(TrimKind::ward) ? 1 : 0;
                 chest.swiftSneakLevels = reward.swiftSneakLevels;
                 chest.enchantedGoldenApples = reward.goldenApples;
+                chest.discKinds = reward.discKinds;
+                chest.miscKinds = reward.miscKinds;
+                chest.discFragments = reward.discFragments;
                 item.chests.push_back(std::move(chest));
             }
         }

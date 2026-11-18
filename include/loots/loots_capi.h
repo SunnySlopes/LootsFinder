@@ -16,7 +16,7 @@ extern "C" {
 #endif
 
 /** Bump when the layout of any struct below changes. */
-#define LOOTS_CAPI_VERSION 1
+#define LOOTS_CAPI_VERSION 2
 
 /** Matches the host limit; a city never carries more evaluated chests than this. */
 #define LOOTS_MAX_CHESTS_PER_CITY 64
@@ -41,6 +41,12 @@ typedef struct loots_chest {
     int silence;
     int ward;
     int golden_apples;
+    /** Music disc/fragment bits, see loots::LootDiscBits. */
+    unsigned int disc_kinds;
+    /** Banner/egg/golden-apple bits, see loots::LootMiscBits. */
+    unsigned int misc_kinds;
+    /** Total disc_fragment_5 items. */
+    int disc_fragments;
     unsigned long long loot_seed;
 } loots_chest;
 

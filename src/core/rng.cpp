@@ -229,6 +229,11 @@ float PostProcessRandom::nextFloat()
     return xor_ ? worldgenNextFloat(xoro_) : legacy_.nextFloat();
 }
 
+bool PostProcessRandom::nextBoolean()
+{
+    return xor_ ? ((xoro_.nextLong() & 1ULL) != 0) : legacy_.nextBoolean();
+}
+
 } // namespace loots
 
 extern "C" unsigned long long loots_decoration_seed_value(unsigned long long seed, int x, int z, int xoroshiro)

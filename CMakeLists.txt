@@ -73,6 +73,8 @@ add_library(loots STATIC
   src/core/version.cpp
   src/core/capi.cpp
   src/loot/loot.cpp
+  src/mineshaft/mineshaft.cpp
+  src/mineshaft/mineshaft_gen.c
   src/structures/pieces_c.c
   src/structures/structure_pieces.cpp
   src/jigsaw/jigsaw.cpp
@@ -88,6 +90,7 @@ add_library(loots STATIC
   src/woodland_mansion/woodland_mansion.cpp
   src/ocean_ruin/ocean_ruin.cpp
   src/trail_ruins/trail_ruins.cpp
+  src/trial_chambers/trial_chambers.cpp
   src/shipwreck/shipwreck.cpp
   src/desert_jungle/fixed_structures.cpp
   src/stronghold/stronghold.cpp
@@ -124,6 +127,7 @@ set_source_files_properties(
   src/worldgen/overwrites.cpp
   src/worldgen/structure_layout/layout.cpp
   src/worldgen/structure_layout/climate_modern.cpp
+  src/trial_chambers/trial_chambers.cpp
   PROPERTIES COMPILE_DEFINITIONS "${LOOTS_WORLDGEN_DEFS}")
 
 # Keep loots' stronghold implementation private: another copy may coexist in
@@ -158,6 +162,7 @@ target_include_directories(loots PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/src"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/jigsaw"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/structures"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/mineshaft"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/outpost"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/stronghold"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/worldgen"
