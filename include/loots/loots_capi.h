@@ -16,7 +16,7 @@ extern "C" {
 #endif
 
 /** Bump when the layout of any struct below changes. */
-#define LOOTS_CAPI_VERSION 2
+#define LOOTS_CAPI_VERSION 3
 
 /** Matches the host limit; a city never carries more evaluated chests than this. */
 #define LOOTS_MAX_CHESTS_PER_CITY 64
@@ -27,9 +27,6 @@ typedef struct loots_capability {
     int city_swift_sneak;
     int city_golden_apple;
     int city_ward;
-    int ore_diamond;
-    int ore_lapis;
-    int nether_debris;
     int supported;
 } loots_capability;
 

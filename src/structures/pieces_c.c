@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "finders.h"
+#include "util.h"
 
 extern unsigned long long loots_decoration_seed_value(unsigned long long seed, int x, int z, int xoroshiro);
 #include "features/fortress.h"
@@ -272,6 +273,51 @@ int loots_mineshaft_type(int mc, unsigned long long seed, int x, int z)
     return getCategory(mc, biome) == mesa ? 1 : 0;
 }
 
+/*
+ * Resolved 26.3 `has_structure/mineshaft` tag (nested tags expanded). The mesa
+ * variant only accepts `has_structure/mineshaft_mesa`, i.e. the badlands tag.
+ * Vanilla does not decide the variant from the surface biome alone: the
+ * structure set contains both entries and the weighted selection RNG picks one,
+ * whose biome is then checked at the jigsaw start position (which can be deep
+ * underground, where cave biomes such as dripstone_caves are allowed).
+ */
+static const char *const kMineshaftNormalBiomes[] = {
+    "bamboo_jungle", "beach", "birch_forest", "cherry_grove", "cold_ocean",
+    "dappled_forest", "dark_forest", "deep_cold_ocean", "deep_frozen_ocean",
+    "deep_lukewarm_ocean", "deep_ocean", "desert", "dripstone_caves",
+    "flower_forest", "forest", "frozen_ocean", "frozen_peaks", "frozen_river",
+    "grove", "ice_spikes", "jagged_peaks", "jungle", "lukewarm_ocean",
+    "lush_caves", "mangrove_swamp", "meadow", "mushroom_fields", "ocean",
+    "old_growth_birch_forest", "old_growth_pine_taiga", "old_growth_spruce_taiga",
+    "pale_garden", "plains", "river", "savanna", "savanna_plateau",
+    "snowy_beach", "snowy_plains", "snowy_slopes", "snowy_taiga",
+    "sparse_jungle", "stony_peaks", "stony_shore", "sulfur_caves",
+    "sunflower_plains", "swamp", "taiga", "warm_ocean", "windswept_forest",
+    "windswept_gravelly_hills", "windswept_hills", "windswept_savanna",
+};
+
+static const char *const kMineshaftMesaBiomes[] = {
+    "badlands", "eroded_badlands", "wooded_badlands",
+};
+
+int loots_mineshaft_biome_allowed(int mc, int kind, int biome)
+{
+    const char *name = biome >= 0 ? biome2str(mc, biome) : NULL;
+    const char *const *list;
+    int count, i;
+    if (!name) return 0;
+    if (kind == 1) {
+        list = kMineshaftMesaBiomes;
+        count = (int)(sizeof(kMineshaftMesaBiomes) / sizeof(kMineshaftMesaBiomes[0]));
+    } else {
+        list = kMineshaftNormalBiomes;
+        count = (int)(sizeof(kMineshaftNormalBiomes) / sizeof(kMineshaftNormalBiomes[0]));
+    }
+    for (i = 0; i < count; i++)
+        if (strcmp(name, list[i]) == 0) return 1;
+    return 0;
+}
+
 /* java.util.Random's nextLong(), used by WorldgenRandom.setLargeFeatureSeed().
  * This is deliberately NOT getPopulationSeed(): the latter is the 1.18+
  * Xoroshiro decoration seed and is a different value. */
@@ -364,6 +410,19 @@ int loots_biome_is_warm_ocean(int mc, unsigned long long seed, int x, int z)
            b == deep_warm_ocean;
 }
 
+int loots_biome_is_deep_dark(int mc, unsigned long long seed, int x, int y, int z)
+{
+    /* 26.x tag mineshaft_blocking only contains minecraft:deep_dark; a corridor
+     * whose clipped centre has this biome skips postProcess entirely. */
+    return loots_biome_exact_y(mc, seed, x, y, z) == deep_dark;
+}
+
+const char *loots_biome_name_at(int mc, unsigned long long seed, int x, int y, int z)
+{
+    const int biome = loots_biome_exact_y(mc, seed, x, y, z);
+    return biome >= 0 ? biome2str(mc, biome) : NULL;
+}
+
 int loots_biome_exact(int mc, unsigned long long seed, int x, int z)
 {
     static Generator gen;
@@ -408,6 +467,32 @@ int loots_surface_height(int mc, unsigned long long seed, int x, int z)
     if (mapApproxHeight(&y, NULL, &hgen, NULL, x >> 2, z >> 2, 1, 1) != 0)
         return 64;
     return (int) y;
+}
+
+int loots_mineshaft_positions(int mc, unsigned long long seed, int chunk_x0, int chunk_z0,
+                              int chunk_x1, int chunk_z1, loots_found *out, int capacity)
+{
+    static Generator gen;
+    static int genMc = -1;
+    static unsigned long long genSeed = 0;
+    Pos buffer[4096];
+    int count;
+    if (!out || capacity <= 0) return 0;
+    if (chunk_x1 < chunk_x0 || chunk_z1 < chunk_z0) return 0;
+    if (genMc != mc || genSeed != seed) {
+        setupGenerator(&gen, mc, 0);
+        applySeed(&gen, DIM_OVERWORLD, seed);
+        genMc = mc;
+        genSeed = seed;
+    }
+    count = getMineshafts(mc, seed, chunk_x0, chunk_z0, chunk_x1, chunk_z1, buffer,
+                          (int)(sizeof(buffer) / sizeof(buffer[0])));
+    if (count > capacity) count = capacity;
+    for (int i = 0; i < count; i++) {
+        out[i].x = buffer[i].x;
+        out[i].z = buffer[i].z;
+    }
+    return count;
 }
 
 int loots_find_structures(int mc, unsigned long long seed, int stype, int dim,

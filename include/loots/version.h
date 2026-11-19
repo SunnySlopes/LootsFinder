@@ -9,7 +9,7 @@
 // Bump this whenever the public API in loots.h changes in a way that is not
 // source compatible. The host (native/) checks it at compile time so a stale
 // submodule checkout fails loudly instead of silently misbehaving.
-#define LOOTS_ABI_VERSION 3
+#define LOOTS_ABI_VERSION 5
 
 namespace loots {
 

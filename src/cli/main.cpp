@@ -148,14 +148,10 @@ int cmdCapability(const std::vector<std::string> &flags)
         "  \"citySwiftSneak\": %s,\n"
         "  \"cityGoldenApple\": %s,\n"
         "  \"cityWard\": %s,\n"
-        "  \"oreDiamond\": %s,\n"
-        "  \"oreLapis\": %s,\n"
-        "  \"netherDebris\": %s,\n"
         "  \"supported\": %s\n"
         "}\n",
         mc, cap.city_tier, jsonBool(cap.city_silence), jsonBool(cap.city_swift_sneak),
-        jsonBool(cap.city_golden_apple), jsonBool(cap.city_ward), jsonBool(cap.ore_diamond),
-        jsonBool(cap.ore_lapis), jsonBool(cap.nether_debris), jsonBool(cap.supported));
+        jsonBool(cap.city_golden_apple), jsonBool(cap.city_ward), jsonBool(cap.supported));
     return 0;
 }
 
@@ -270,10 +266,11 @@ int cmdChest(const std::vector<std::string> &flags)
     std::printf(",\n  \"netheriteUpgrade\": %s,\n"
                 "  \"goldenApples\": %d,\n  \"snifferEgg\": %s,\n"
                 "  \"piglinBanner\": %s,\n  \"discKinds\": %u,\n  \"miscKinds\": %u,\n"
+                "  \"sherdKinds\": %u,\n"
                 "  \"discFragments\": %u\n}\n",
                 jsonBool(r.netheriteUpgrade), r.goldenApples, jsonBool(r.snifferEgg),
                 jsonBool(r.hasItem(loots::LootItem_PiglinBanner)), r.discKinds, r.miscKinds,
-                static_cast<unsigned>(r.discFragments));
+                r.sherdKinds, static_cast<unsigned>(r.discFragments));
     return 0;
 }
 
@@ -292,12 +289,14 @@ int printStructureLoot(const loots::StructureLoot &sl, const char *suspiciousSta
         std::printf("    { \"x\": %d, \"y\": %d, \"z\": %d, \"template\": \"%s\", \"table\": \"%s\", \"lootSeed\": %lld, \"lootSeedU\": %llu, "
                     "\"trim\": %s, \"netherite\": %s, \"goldenApples\": %d, "
                     "\"snifferEgg\": %s, \"piglinBanner\": %s, \"discKinds\": %u, "
+                    "\"sherdKinds\": %u, "
                     "\"discFragments\": %u, \"approximate\": %s }%s\n",
                     c.x, c.y, c.z, c.templateName.c_str(), c.lootTable.c_str(), static_cast<long long>(c.lootSeed), static_cast<unsigned long long>(c.lootSeed), jsonBool(c.reward.trim),
                     jsonBool(c.reward.netheriteUpgrade), c.reward.goldenApples,
                     jsonBool(c.reward.snifferEgg),
                     jsonBool(c.reward.hasItem(loots::LootItem_PiglinBanner)),
-                    c.reward.discKinds, static_cast<unsigned>(c.reward.discFragments),
+                    c.reward.discKinds, c.reward.sherdKinds,
+                    static_cast<unsigned>(c.reward.discFragments),
                     jsonBool(c.approximate),
                     i + 1 < sl.chests.size() ? "," : "");
     }
@@ -311,7 +310,8 @@ int printStructureLoot(const loots::StructureLoot &sl, const char *suspiciousSta
                     c.x, c.y, c.z, c.templateName.c_str(), c.lootTable.c_str(),
                     (long long) c.lootSeed, jsonBool(c.reward.evaluated));
         printTrimKinds(c.reward.trimKinds);
-        std::printf(",\"piglinBanner\": %s }%s\n",
+        std::printf(",\"sherdKinds\": %u, \"piglinBanner\": %s }%s\n",
+                    c.reward.sherdKinds,
                     jsonBool(c.reward.hasItem(loots::LootItem_PiglinBanner)),
                     i + 1 < sl.suspicious.size() ? "," : "");
     }

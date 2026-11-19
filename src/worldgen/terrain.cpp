@@ -268,6 +268,7 @@ struct Terrain::Impl {
     Carver carver;
     uint64_t seed;
     int generation;
+    int mc;
     std::unique_ptr<Structures> structures;
 
     struct Neighbor {
@@ -293,10 +294,10 @@ struct Terrain::Impl {
 
     std::unordered_map<uint64_t, SamplingBound> sampling_bounds;
 
-    explicit Impl(uint64_t seed, int generation)
+    explicit Impl(uint64_t seed, int generation, int mc)
         : nodes(uses_118_terrain(generation) ? terrain118_data::nodes : terrain_data::nodes),
           spline_points(uses_118_terrain(generation) ? terrain118_data::points : terrain_data::points),
-          carver(seed), seed(seed), generation(generation), geodes(seed, generation) {
+          carver(seed), seed(seed), generation(generation), mc(mc), geodes(seed, generation) {
         Xoroshiro random;
         xSetSeed(&random, seed);
         uint64_t lo = xNextLong(&random), hi = xNextLong(&random);
@@ -790,7 +791,9 @@ struct Terrain::Impl {
         return 2 * (noise + p);
     }
 
-    bool aquifer_solid(int x, int y, int z, double density, bool *non_air = nullptr) {
+    bool aquifer_solid(int x, int y, int z, double density, bool *non_air = nullptr,
+                       int *fluid_type = nullptr) {
+        if (fluid_type) *fluid_type = 0;
         // 旧采样器在基础密度触及-64时直接使用全局流体，不再施加含水层压力。
         if (generation == -2 && density <= -11.0 / 24 && eval(terrain118_data::base_density, x, y, z) <= -64) {
             if (non_air) *non_air = false;
@@ -802,6 +805,7 @@ struct Terrain::Impl {
         }
         if (global(y).at(y) == 2) {
             if (non_air) *non_air = true;
+            if (fluid_type) *fluid_type = 2;
             return false;
         }
         // 限制含水层缓存，避免大范围开发扫描累计所有历史查询；值可确定重算。
@@ -882,11 +886,15 @@ struct Terrain::Impl {
         }
         aquifer_eval = false;
         if (non_air) *non_air = solid || a.at(y) != 0;
+        // 原版 NoiseBasedAquifer.computeSubstance 在非固体时返回最近单元
+        // closestStatus1.at(blockY) 的方块状态；type 1 = 水，2 = 岩浆。
+        if (!solid && fluid_type) *fluid_type = a.at(y);
         return solid;
     }
 };
 
-Terrain::Terrain(uint64_t seed, int generation) : impl_(std::make_unique<Impl>(seed, generation)) {}
+Terrain::Terrain(uint64_t seed, int generation, int mc)
+    : impl_(std::make_unique<Impl>(seed, generation, mc)) {}
 
 Terrain::~Terrain() = default;
 
@@ -921,7 +929,7 @@ bool Terrain::overwritten(int x, int y, int z) {
     if (impl_->generation <= 0)
         return false;
     if (!impl_->structures)
-        impl_->structures = std::make_unique<Structures>(impl_->seed, impl_->generation);
+        impl_->structures = std::make_unique<Structures>(impl_->seed, impl_->generation, impl_->mc);
     return impl_->structures->trial_written(x, y, z);
 }
 
@@ -1050,9 +1058,21 @@ bool Terrain::solid(int x, int y, int z) {
     return !carved(x, y, z) || impl_->aquifer_solid(x, y, z, 0);
 }
 
+int Terrain::fluid_type(int x, int y, int z) {
+    if (y < -64 || y >= 320)
+        return 0;
+    // 固体判定与 solid() 一致（含 beard）；只有非固体位置才回退到含水层。
+    double d = density(x, y, z);
+    if (d + beard(x, y, z) > 0)
+        return 0;
+    int fluid = 0;
+    impl_->aquifer_solid(x, y, z, d, nullptr, &fluid);
+    return fluid;
+}
+
 double Terrain::beard(int x, int y, int z) {
     if (!impl_->structures)
-        impl_->structures = std::make_unique<Structures>(impl_->seed, impl_->generation);
+        impl_->structures = std::make_unique<Structures>(impl_->seed, impl_->generation, impl_->mc);
     return impl_->structures->beard(x, y, z);
 }
 

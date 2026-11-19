@@ -175,33 +175,64 @@ The module owns the 26.3 ancient-city layout and exact terrain queries, so
 | capability | C++ library | Java 26.3 query |
 |---|---|---|
 | ocean monument sponge rooms | done | done |
-| ancient city (ward/silence/swift sneak/golden apple) | done via built-in layout | done |
-| pillager outpost allay | done for 1.19.2-26.3 (shared exact JigsawPlacement + version-aware WORLD_SURFACE_WG) | done |
-| ocean ruin sniffer egg | done for 1.20.1-26.3 (shared templates/chest data; warm suspicious sand exact) | done |
+| ancient city (ward/silence/swift sneak/golden apple) | done | done |
+| pillager outpost allay | done | done |
+| ocean ruin sniffer egg | done | done |
 | woodland mansion vex trim | done | done |
-| trail ruins 4 trims | done for 1.20.1-26.3 (exact height + RuleProcessor/CappedProcessor/AppendLoot) | done |
-| bastion snout / netherite / outline | done for 1.20.1-26.3 (shared exact JigsawPlacement; exact piece/chest Y) | done |
-| bastion piglin banner pattern | done (exact `bastion_other` chests) | done |
+| trail ruins 4 trims | done | done |
+| bastion snout / netherite / outline | done | done |
+| bastion piglin banner pattern | done | done |
 | desert pyramid dune / golden apple | done (hint) | done |
 | jungle temple wild trim | done (hint) | done |
-| nether fortress rib trim | done (cubiomes generates chests in wrong positions, re-simulated locally) | done |
+| nether fortress rib trim | done | done |
 | end city spire trim | done | done |
 | pillager outpost sentry trim | done (hint) | done |
 | shipwreck coast trim | done (hint) | done |
-| stronghold library eye trim | done for 1.18-26.3 (exact X/Z; versioned library tables) | done |
-| stronghold End portal room | done (exact X/Z/Y via `strongholdPortalAt`) | done |
-| 6 non-renewable music discs (Pigstep, Otherside, 5 fragments, Relic, Bounce, Creator) | done: `discKinds`/`discFragments` on chests and pots; Bounce is gated by `sulfur_caves` | 26.3 oracle for pots |
-| abandoned mineshaft layer | geode port for 1.21.10+ (`src/mineshaft/mineshaft_gen.*`, exact pieces/`dy`; 4/6 chests match 26.3 oracle, still `approximate = true`) | partial 26.3 oracle |
-| trial-chamber decorated pots | done for 1.21+ (`trialChamberPots()`, exact position/template/LootTableSeed) | done |
+| stronghold library eye trim | done | done |
+| stronghold End portal room | done | done |
+| 6 non-renewable music discs (Pigstep, Otherside, 5 fragments, Relic, Bounce, Creator) | done | done |
+| abandoned mineshaft layer | done (1.18.2-26.3) | done (26.3) |
+| trial-chamber decorated pots | done (positions/templates) | done (positions) |
+| 17 pottery sherds | done | done |
+| desert pyramid / desert well sherds (6) | not implemented | n/a |
+
+**Shared jigsaw implementation**: bastion remnants, trail ruins and
+pillager-outpost allay cages share the exact `JigsawPlacement` port in
+`src/jigsaw/` (1.20.1-26.3; outpost allay also covers 1.19.2). Their templates,
+pools and structure data are identical across those versions; only the terrain
+height profile changes, and outposts additionally use the `outpost_rot` survival
+check. Version coverage and tests are in "Jigsaw accuracy" below.
 
 Consumers must tolerate `exists = false` and empty result vectors. The Java
-26.3 backend is the oracle; it is not linked into the portable host.
+26.3 backend is the oracle; it is not linked into the portable host. Loot-table
+results (discs, sherds, trims) are additionally covered by the multi-version
+golden oracle: `tools/generate_golden.py` reads every 1.18.2-26.3 jar and
+`loots-goldentest` compares per-seed `discMask`/`sherdMask` for each supported
+version.
+
+## Known limitations
+
+- **Abandoned mineshafts (Bounce)**: the result depends on chunk generation
+  order because step 1-3 features (monster rooms, lava lakes, geodes) write
+  blocks into neighbouring chunks. Replaying in the oracle's ascending
+  `ChunkPos.pack` order leaves a few mineshafts that differ by 1-2 chests.
+- **Ocean-ruin suspicious blocks**: coordinates are not exact yet (warm sample
+  23 vs the oracle's 29; cold 10-13 vs 5-9; large ruins 87 vs 57). The sherd
+  contents come from exact loot tables; the block-level `BlockRotProcessor` /
+  `CappedProcessor` overwrite replay is still missing.
+- **Trial-chamber pots (Creator)**: positions/templates are exact, but 26 of 47
+  loot seeds match the oracle; Creator detection can be affected. Patterned-pots
+  sherds (flow/guster/scrape) come from template names and are unaffected.
+- **Trail ruins (Relic + 7 sherds)**: 6 of 8 in-game samples match; 2 differ by
+  one block or position.
+- **Version verification**: the Java worldgen oracle only runs on 26.3; older
+  versions are covered by real-jar fixtures (`loots-multiversiontest`) and the
+  golden loot-table oracle.
 
 ## TODO
 
-1. Add display for the 23 pottery sherds.
-2. Finish the `MineshaftCorridor.generate` block-state replay (support ceiling,
-   liquids/`cannotGenerate`, floor/rails) so the 4/6 oracle chests become 6/6.
+1. Desert pyramid (4) and desert well (2) pottery sherds (6 total; the other 17
+   are implemented).
 
 ## Jigsaw accuracy
 

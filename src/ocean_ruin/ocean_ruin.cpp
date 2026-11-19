@@ -204,7 +204,11 @@ int templateY(int mc, uint64_t seed, int x, int z, const data::OceanTemplateBloc
     for (int zz = z0; zz <= z1; zz++) {
         for (int xx = x0; xx <= x1; xx++) {
             int floorY = height - 1;
-            // Warm oceans never carry ice; air and water are both "not solid".
+            // OceanRuinPiece.getHeight() descends through air, water and
+            // BlockTags.ICE. Loots' terrain model cannot tell ice from stone, so
+            // a frozen-ocean ice sheet would stop the descent early; in the
+            // normal oracle chunk order freeze_top_layer runs after this
+            // structure, so the column is still water here.
             while (floorY > -63 && !worldSolid(mc, seed, xx, floorY, zz)) floorY--;
             minY = std::min(minY, floorY);
             if (floorY < topY - 2) area++;
@@ -219,10 +223,14 @@ int templateY(int mc, uint64_t seed, int x, int z, const data::OceanTemplateBloc
  * BlockRotProcessor uses per-world-position legacy RNG; CappedProcessor uses
  * the world-seed positional RNG at the template position.
  */
-void collectSuspicious(int mc, uint64_t seed, const Piece &p, StructureLoot &out)
+void collectSuspicious(int mc, uint64_t seed, const Piece &p, StructureLoot &out, bool warm)
 {
     const data::OceanTemplateBlocks *t = findBlocks(p.name);
     if (!t || t->blockCount == 0) return;
+    // WARM_SUSPICIOUS_BLOCK_PROCESSOR matches sand, COLD_... matches gravel.
+    const uint8_t suspiciousKind = warm ? 1 : 2;
+    const char *suspiciousTable =
+        warm ? "archaeology/ocean_ruin_warm" : "archaeology/ocean_ruin_cold";
 
     const int ty = templateY(mc, seed, p.x, p.z, *t, p.rotation);
     const float integrity = p.large ? 0.9f : 0.8f;
@@ -243,7 +251,9 @@ void collectSuspicious(int mc, uint64_t seed, const Piece &p, StructureLoot &out
         const int wy = ty + b.y;
         const int wz = p.z + tz;
         LegacyRandom rng(static_cast<uint64_t>(mthGetSeed(wx, wy, wz)));
-        if (rng.nextFloat() > integrity) continue; // BlockRotProcessor removes it
+        // BlockRotProcessor keeps a block when it is not rolled for rot:
+        // `!(random.nextFloat() <= integrity)`.
+        if (rng.nextFloat() <= integrity) continue;
         survivors.push_back({wx, wy, wz, b.kind});
     }
     if (survivors.empty()) return;
@@ -253,13 +263,14 @@ void collectSuspicious(int mc, uint64_t seed, const Piece &p, StructureLoot &out
     PositionalRandom capRng = PositionalRandom::at(seed, p.x, ty, p.z);
     shuffle(capRng, order);
 
-    // CappedProcessor(ConstantInt.of(5)); RuleProcessor matches sand only.
-    // Blocks with no support below are falling suspicious sand: vanilla's
-    // FallingBlock schedules them, and the 26.3 oracle filters them out.
+    // CappedProcessor(ConstantInt.of(5)); RuleProcessor matches the variant's
+    // block (sand for warm, gravel for cold). Blocks with no support below are
+    // falling suspicious blocks: vanilla's FallingBlock schedules them, and the
+    // 26.3 oracle filters them out.
     int replaced = 0;
     for (uint16_t index : order) {
         const Survived &s = survivors[index];
-        if (s.kind != 1) continue; // warm ruins: sand -> suspicious sand
+        if (s.kind != suspiciousKind) continue;
         replaced++;
         if (!worldSolid(mc, seed, s.x, s.y - 1, s.z)) {
             if (replaced >= 5) break;
@@ -270,7 +281,7 @@ void collectSuspicious(int mc, uint64_t seed, const Piece &p, StructureLoot &out
         chest.y = s.y;
         chest.z = s.z;
         chest.templateName = p.name;
-        chest.lootTable = "archaeology/ocean_ruin_warm";
+        chest.lootTable = suspiciousTable;
         chest.lootSeed = suspiciousLootSeed(s.x, s.y, s.z);
         out.suspicious.push_back(std::move(chest));
         if (replaced >= 5) break;
@@ -348,7 +359,7 @@ bool oceanRuinLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out)
             chest.lootSeed = it->second.nextLong();
             out.chests.push_back(std::move(chest));
         }
-        if (warm) collectSuspicious(mc, seed, piece, out);
+        collectSuspicious(mc, seed, piece, out, warm);
     }
     out.exists = out.pieces > 0;
     return out.exists;

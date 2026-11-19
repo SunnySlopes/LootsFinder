@@ -11,7 +11,7 @@ class Terrain {
     std::unique_ptr<Impl> impl_;
 
   public:
-    explicit Terrain(uint64_t seed, int generation = 1);
+    explicit Terrain(uint64_t seed, int generation = 1, int mc = 0);
     ~Terrain();
     double density(int x, int y, int z);
     double raw_density(int x, int y, int z);
@@ -32,6 +32,10 @@ class Terrain {
     int height_ocean_floor(int x, int z);
     // 该坐标的流体是否为空（用于 environment_scan 的"非空气"判定）。
     bool fluid_empty(int x, int y, int z);
+    // 非固体方块处的流体类型：0 = 空气，1 = 水，2 = 岩浆。
+    // 与 aquifer_solid() 使用同一套最近含水层单元规则（原版取最近单元
+    // 在 y 处的流体）。
+    int fluid_type(int x, int y, int z);
     // 该坐标是否为空方块（原版 level.isEmptyBlock：空气或流体）。
     bool isEmptyBlock(int x, int y, int z);
 

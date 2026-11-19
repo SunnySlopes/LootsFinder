@@ -89,9 +89,6 @@ void loots_capability_query(int mc, loots_capability *out)
     out->city_swift_sneak = cap.citySwiftSneak ? 1 : 0;
     out->city_golden_apple = cap.cityGoldenApple ? 1 : 0;
     out->city_ward = cap.cityWard ? 1 : 0;
-    out->ore_diamond = cap.oreDiamond ? 1 : 0;
-    out->ore_lapis = cap.oreLapis ? 1 : 0;
-    out->nether_debris = cap.netherDebris ? 1 : 0;
     out->supported = loots::overlaySupported(mc) ? 1 : 0;
 }
 

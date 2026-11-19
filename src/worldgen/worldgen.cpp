@@ -6,6 +6,7 @@
 
 #include "terrain.hpp"
 #include "structure_layout/layout.hpp"
+#include "pieces_c.h"
 
 namespace loots {
 namespace {
@@ -14,6 +15,7 @@ std::mutex g_terrainMu;
 std::unique_ptr<loots_wg::Terrain> g_terrain;
 uint64_t g_terrainSeed = 0;
 int g_terrainGeneration = -1000;
+int g_terrainMc = -1000;
 
 /**
  * Cubiomes MC_* id -> geode/loots terrain generation profile.
@@ -44,10 +46,15 @@ int terrainGenerationForMc(int mc)
 loots_wg::Terrain &terrainFor(int mc, uint64_t seed)
 {
     const int generation = terrainGenerationForMc(mc);
-    if (!g_terrain || g_terrainSeed != seed || g_terrainGeneration != generation) {
-        g_terrain = std::make_unique<loots_wg::Terrain>(seed, generation);
+    // The version id is part of the key: several MC ids share one generation
+    // profile but differ in aquifer/biome branches, and the CLI/tests switch
+    // versions inside one process.
+    if (!g_terrain || g_terrainSeed != seed || g_terrainGeneration != generation ||
+        g_terrainMc != mc) {
+        g_terrain = std::make_unique<loots_wg::Terrain>(seed, generation, mc);
         g_terrainSeed = seed;
         g_terrainGeneration = generation;
+        g_terrainMc = mc;
     }
     return *g_terrain;
 }
@@ -73,6 +80,17 @@ bool worldSolid(int mc, uint64_t seed, int x, int y, int z)
 {
     std::lock_guard<std::mutex> lock(g_terrainMu);
     return terrainFor(mc, seed).solid(x, y, z);
+}
+
+int worldFluidType(int mc, uint64_t seed, int x, int y, int z)
+{
+    std::lock_guard<std::mutex> lock(g_terrainMu);
+    return terrainFor(mc, seed).fluid_type(x, y, z);
+}
+
+bool worldMineshaftBlockingBiome(int mc, uint64_t seed, int x, int y, int z)
+{
+    return loots_biome_is_deep_dark(mc, seed, x, y, z) != 0;
 }
 
 bool worldBaseSolid(int mc, uint64_t seed, int x, int y, int z)

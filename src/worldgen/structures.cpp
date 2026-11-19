@@ -1,6 +1,7 @@
 #include "structures.hpp"
 #include "geode.hpp"
 #include "structure_layout/layout.hpp"
+#include "pieces_c.h"
 #include <algorithm>
 #include <unordered_map>
 #include <array>
@@ -52,6 +53,7 @@ double contribution(int x, int y, int z, int signed_y) {
 struct Structures::Impl {
     uint64_t seed;
     int generation;
+    int mc;
     geode_layout::LayoutEngine engine;
     const std::vector<Mask> &masks;
     geode_layout::LayoutEngine city;
@@ -60,6 +62,8 @@ struct Structures::Impl {
         geode_layout::Point position;
         geode_layout::Box bounds;
         std::optional<geode_layout::Chamber> layout;
+        /** Cached 26.3 deep-dark gate for the (permissive) ancient-city layout. */
+        int deep_dark = -1;
     };
 
     std::unordered_map<uint64_t, Start> regions;
@@ -67,8 +71,8 @@ struct Structures::Impl {
     std::unordered_map<uint64_t, Start> cities;
     std::unordered_map<uint64_t, std::vector<geode_layout::Placed>> beard_chunks, layout_beard_chunks;
 
-    Impl(uint64_t s, int g)
-        : seed(s), generation(g), engine(g, s), masks(g == 1 ? legacy_masks : modern_masks), city(g >= 5 ? 6 : 3, s) {}
+    Impl(uint64_t s, int g, int m)
+        : seed(s), generation(g), mc(m), engine(g, s), masks(g == 1 ? legacy_masks : modern_masks), city(g >= 5 ? 6 : 3, s) {}
 
     const std::vector<geode_layout::Placed> &beard_pieces(int cx, int cz, bool ancient) {
         auto &cache = ancient ? beard_chunks : layout_beard_chunks;
@@ -106,6 +110,22 @@ struct Structures::Impl {
                     continue;
                 if (!s.layout)
                     s.layout = layout.generate(geode_layout::floor_div(s.position.x, 16), geode_layout::floor_div(s.position.z, 16));
+                if (ancient && generation >= 5) {
+                    // loots stubs the 26.3 climate sampler, so the ancient-city
+                    // layout engine is deliberately permissive: every candidate
+                    // start yields pieces. The Beardifier, however, only sees
+                    // cities that vanilla actually placed, so gate the terrain
+                    // adaptation on the deep-dark check vanilla performs at the
+                    // jigsaw start position (chunk middle, absolute y = -27).
+                    if (s.layout->placed.empty())
+                        continue;
+                    if (s.deep_dark < 0) {
+                        const auto &biome = s.layout->biome_position;
+                        s.deep_dark = loots_biome_is_deep_dark(mc, seed, biome.x, biome.y, biome.z) ? 1 : 0;
+                    }
+                    if (!s.deep_dark)
+                        continue;
+                }
                 for (const auto &source : s.layout->placed) {
                     if (source.box.hi.x < padded.lo.x || source.box.lo.x > padded.hi.x ||
                         source.box.hi.z < padded.lo.z || source.box.lo.z > padded.hi.z)
@@ -159,7 +179,7 @@ struct Structures::Impl {
     }
 };
 
-Structures::Structures(uint64_t seed, int generation) : impl_(std::make_unique<Impl>(seed, generation)) {}
+Structures::Structures(uint64_t seed, int generation, int mc) : impl_(std::make_unique<Impl>(seed, generation, mc)) {}
 
 Structures::~Structures() = default;
 

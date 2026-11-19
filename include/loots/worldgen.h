@@ -26,6 +26,12 @@ int worldOceanFloorHeight(int mc, uint64_t seed, int x, int z);
 /** Version-aware terrain solidity, including carvers but without structure beards. */
 bool worldSolid(int mc, uint64_t seed, int x, int y, int z);
 
+/** Fluid at a non-solid block: 0 air, 1 water, 2 lava. */
+int worldFluidType(int mc, uint64_t seed, int x, int y, int z);
+
+/** True when the biome at (x, y, z) is in the 26.x `mineshaft_blocking` tag. */
+bool worldMineshaftBlockingBiome(int mc, uint64_t seed, int x, int y, int z);
+
 /** Density-only solidity before carvers. */
 bool worldBaseSolid(int mc, uint64_t seed, int x, int y, int z);
 

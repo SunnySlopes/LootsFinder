@@ -24,6 +24,13 @@
  * 因此四个版本共用同一套生成规则。版本枚举存在的意义�? 让调用方记录
  * "按哪个版本的源码核对�?, 并让 ms_defaults_for_version() 给出该版�? * 正确�?seaLevel / minY 默认值�? */
 
+/*
+ * Version coverage (verified against the real jars): MineshaftPieces and MineshaftStructure
+ * are logically identical from 1.18.2 through 1.21.11; the 1.21.4+ decompiler output only
+ * splits helpers that 1.18-1.21.1 inlined. MsVersion therefore records the comparison
+ * baseline, while ms_version_min_y()/ms_version_sea_level() are the same for every 1.18+
+ * version. The exact chest replay is used for mc 22 (1.18.2) and newer.
+ */
 #ifndef MINESHAFT_GEN_H_
 #define MINESHAFT_GEN_H_
 

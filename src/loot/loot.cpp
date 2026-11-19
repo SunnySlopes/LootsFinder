@@ -105,8 +105,32 @@ TrimKind trimKindOf(data::ItemKind kind)
     }
 }
 
-int rollCount(LegacyRandom &rng, int lo, int hi)
+/** Pottery-sherd bit for a generated ItemKind, or 0 when it is not a sherd. */
+uint32_t sherdBitOf(data::ItemKind kind)
 {
+    switch (kind) {
+    case data::ItemKind::sherd_burn: return LootSherd_Burn;
+    case data::ItemKind::sherd_danger: return LootSherd_Danger;
+    case data::ItemKind::sherd_friend: return LootSherd_Friend;
+    case data::ItemKind::sherd_heart: return LootSherd_Heart;
+    case data::ItemKind::sherd_heartbreak: return LootSherd_Heartbreak;
+    case data::ItemKind::sherd_howl: return LootSherd_Howl;
+    case data::ItemKind::sherd_sheaf: return LootSherd_Sheaf;
+    case data::ItemKind::sherd_flow: return LootSherd_Flow;
+    case data::ItemKind::sherd_guster: return LootSherd_Guster;
+    case data::ItemKind::sherd_scrape: return LootSherd_Scrape;
+    case data::ItemKind::sherd_angler: return LootSherd_Angler;
+    case data::ItemKind::sherd_shelter: return LootSherd_Shelter;
+    case data::ItemKind::sherd_snort: return LootSherd_Snort;
+    case data::ItemKind::sherd_blade: return LootSherd_Blade;
+    case data::ItemKind::sherd_explorer: return LootSherd_Explorer;
+    case data::ItemKind::sherd_mourner: return LootSherd_Mourner;
+    case data::ItemKind::sherd_plenty: return LootSherd_Plenty;
+    default: return 0;
+    }
+}
+
+int rollCount(LegacyRandom &rng, int lo, int hi){
     if (hi <= lo) return lo;
     return lo + rng.nextInt(hi - lo + 1);
 }
@@ -486,13 +510,17 @@ ChestReward evaluateChest(const char *tableName, uint64_t lootSeed, int mc,
                 out.discKinds |= LootDisc_Fragment5;
                 out.discFragments = static_cast<uint16_t>(out.discFragments + count);
                 break;
-            default:
-                if (trackedTrim(entry->kind)) {
+            default: {
+                const uint32_t sherd = sherdBitOf(entry->kind);
+                if (sherd) {
+                    out.sherdKinds |= sherd;
+                } else if (trackedTrim(entry->kind)) {
                     out.trim = true;
                     const TrimKind kind = trimKindOf(entry->kind);
                     out.trimKinds |= (1u << static_cast<unsigned>(kind));
                 }
                 break;
+            }
             }
         }
     }

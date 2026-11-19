@@ -7,15 +7,14 @@
 // the loot-table schema lookup (M2) has to distinguish them by mc range.
 namespace loots {
 
-// These are cubiomes' MC_* numeric ids (probed with docs/ore_bench/probe_mc_ids.c).
-// The host asserts them at compile time (native/map_service.cpp), so a cubiomes
-// update that renumbers versions fails the build instead of mis-tiering.
+// These are cubiomes' MC_* numeric ids. The host asserts them at compile time
+// (native/map_service.cpp), so a cubiomes update that renumbers versions fails
+// the build instead of mis-tiering.
 enum : int {
     kMc1192 = 23,
     kMc1194 = 24,
     kMc1206 = 25,
     kMc216  = 30,
-    kMc2111 = 32,
     kMc261  = 33,
 };
 
@@ -38,19 +37,13 @@ OverlayCapability overlayCapability(int mc)
     cap.cityWard = cap.cityTier >= CityTier_120_1;
     cap.citySwiftSneak = cap.cityTier >= CityTier_119;
     cap.cityGoldenApple = cap.cityTier >= CityTier_119;
-    // Ore overlays stay gated on 1.21.11 until the feature-tag behaviour is verified.
-    const bool oreReady = mc >= kMc2111;
-    cap.oreDiamond = oreReady;
-    cap.oreLapis = oreReady;
-    cap.netherDebris = oreReady;
     return cap;
 }
 
 bool overlaySupported(int mc)
 {
     const OverlayCapability cap = overlayCapability(mc);
-    return cap.citySilence || cap.citySwiftSneak || cap.cityGoldenApple || cap.cityWard ||
-           cap.oreDiamond || cap.oreLapis || cap.netherDebris;
+    return cap.citySilence || cap.citySwiftSneak || cap.cityGoldenApple || cap.cityWard;
 }
 
 VersionFamily versionFamily(int mc)

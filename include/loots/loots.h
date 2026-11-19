@@ -38,11 +38,8 @@ struct Box3i {
  * cannot collide with cubiomes' StructureType values (0..FEATURE_NUM-1).
  */
 enum OverlayFeature {
-    Overlay_Ore_Diamond      = 101,   // reserved for the ore phase
-    Overlay_Ore_Lapis        = 102,   // reserved for the ore phase
     Overlay_City_Silence     = 103,
     Overlay_City_SwiftSneak  = 104,
-    Overlay_Nether_Debris    = 105,   // reserved for the ore phase
     Overlay_City_GoldenApple = 106,
 };
 
@@ -63,9 +60,6 @@ struct OverlayCapability {
     bool citySwiftSneak = false;
     bool cityGoldenApple = false;
     bool cityWard = false;
-    bool oreDiamond = false;
-    bool oreLapis = false;
-    bool netherDebris = false;
 };
 
 int ancientCityTier(int mc);

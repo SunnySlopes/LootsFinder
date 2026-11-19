@@ -56,8 +56,27 @@ int loots_shipwreck_pieces(int mc, unsigned long long seed, int x, int z,
 int loots_mineshaft_pieces(int mc, unsigned long long seed, int x, int z,
                            loots_piece_result *out);
 
-/** 0 = normal mineshaft, 1 = mesa mineshaft. */
+/**
+ * Surface-biome guess for the mesa variant (badlands category at y=63).
+ *
+ * This is NOT how vanilla picks the variant: both structures share one
+ * structure set, the weighted selection RNG chooses a candidate, and its biome
+ * tag is checked at the jigsaw start position (which can be underground). Use
+ * `loots_mineshaft_biome_allowed` plus the selection RNG for exact results;
+ * this helper is kept for callers that only need the biome hint.
+ */
 int loots_mineshaft_type(int mc, unsigned long long seed, int x, int z);
+
+/**
+ * 1 when `biome` is allowed by the mineshaft structure tag.
+ *
+ * `kind` is 0 for `minecraft:mineshaft` (26.x `has_structure/mineshaft`) and 1
+ * for `minecraft:mineshaft_mesa` (`has_structure/mineshaft_mesa`, badlands).
+ * Both structures share one structure set, so the actual variant is chosen by
+ * the weighted selection RNG and then validated against this tag at the
+ * jigsaw start position (chunk middle X/Z, y = 50 + dy).
+ */
+int loots_mineshaft_biome_allowed(int mc, int kind, int biome);
 
 /** 结构 piece 放置 RNG 的种子：WorldgenRandom.setLargeFeatureSeed()。
  *  这是 legacy java.util.Random 的派生值，不是 1.18+ 的 decoration seed。 */
@@ -85,7 +104,21 @@ int loots_biome_exact_y(int mc, unsigned long long seed, int x, int y, int z);
 /** 1 for warm/lukewarm/deep_lukewarm/deep_warm ocean, 0 for cold. */
 int loots_biome_is_warm_ocean(int mc, unsigned long long seed, int x, int z);
 
+/** 1 when the biome at (x,y,z) is in the 26.x `mineshaft_blocking` tag (deep_dark). */
+int loots_biome_is_deep_dark(int mc, unsigned long long seed, int x, int y, int z);
+
+/** cubiomes biome2str() for the noise biome at (x,y,z); NULL when unavailable. */
+const char *loots_biome_name_at(int mc, unsigned long long seed, int x, int y, int z);
+
 typedef struct loots_found { int x; int z; } loots_found;
+
+/**
+ * Mineshaft positions in an inclusive chunk rectangle (cubiomes getMineshafts).
+ * Mineshafts are chunk decorators, so loots_find_structures() cannot find them.
+ * Returns the number written to `out`.
+ */
+int loots_mineshaft_positions(int mc, unsigned long long seed, int chunk_x0, int chunk_z0,
+                              int chunk_x1, int chunk_z1, loots_found *out, int capacity);
 
 /**
  * Find up to `limit` viable structure positions of `stype` within

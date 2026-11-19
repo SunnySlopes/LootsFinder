@@ -69,12 +69,39 @@ enum LootMiscBits : uint32_t {
     LootMisc_EnchantedGoldenApple = 1u << 2,
 };
 
+/**
+ * Pottery sherds, bit flags for `ChestReward::sherdKinds`.
+ *
+ * Bits 0-6 are archaeology/trail_ruins_rare, 7-9 trail chambers decorated pots
+ * (template mapping, not the loot table), 10-12 ocean_ruin_warm sherds and
+ * 13-16 ocean_ruin_cold sherds. Bits 17-22 are reserved for the desert pyramid
+ * / desert well archaeology that this build does not evaluate yet.
+ */
+enum LootSherdBits : uint32_t {
+    LootSherd_Burn = 1u << 0,
+    LootSherd_Danger = 1u << 1,
+    LootSherd_Friend = 1u << 2,
+    LootSherd_Heart = 1u << 3,
+    LootSherd_Heartbreak = 1u << 4,
+    LootSherd_Howl = 1u << 5,
+    LootSherd_Sheaf = 1u << 6,
+    LootSherd_Flow = 1u << 7,
+    LootSherd_Guster = 1u << 8,
+    LootSherd_Scrape = 1u << 9,
+    LootSherd_Angler = 1u << 10,
+    LootSherd_Shelter = 1u << 11,
+    LootSherd_Snort = 1u << 12,
+    LootSherd_Blade = 1u << 13,
+    LootSherd_Explorer = 1u << 14,
+    LootSherd_Mourner = 1u << 15,
+    LootSherd_Plenty = 1u << 16,
+};
+
 /** UI category bits, see `ChestReward::categoryMask()`. */
 enum LootCategoryBits : uint32_t {
     LootCategory_Misc = 1u << 0,
     LootCategory_Template = 1u << 1,
     LootCategory_Disc = 1u << 2,
-    /** Reserved for the pottery-sherd plan. */
     LootCategory_Sherd = 1u << 3,
 };
 
@@ -97,7 +124,7 @@ struct ChestReward {
     uint32_t discKinds = 0;
     /** Banner / sniffer egg / golden apple, see LootMiscBits. */
     uint32_t miscKinds = 0;
-    /** Reserved for the pottery-sherd plan. */
+    /** Pottery sherds, see LootSherdBits (bits 17-22 reserved). */
     uint32_t sherdKinds = 0;
     /** Total number of `disc_fragment_5` items in this container. */
     uint16_t discFragments = 0;
@@ -111,17 +138,20 @@ struct ChestReward {
     bool hasItem(uint32_t bit) const { return (itemKinds & bit) != 0; }
     bool hasDisc(uint32_t bit) const { return (discKinds & bit) != 0; }
     bool hasMisc(uint32_t bit) const { return (miscKinds & bit) != 0; }
+    bool hasSherd(uint32_t bit) const { return (sherdKinds & bit) != 0; }
 
     bool hasTemplate() const { return trim || netheriteUpgrade; }
     bool hasDisc() const { return discKinds != 0; }
     bool hasMisc() const { return miscKinds != 0; }
+    bool hasSherd() const { return sherdKinds != 0; }
 
-    /** UI category mask: misc / template / disc. */
+    /** UI category mask: misc / template / disc / sherd. */
     uint32_t categoryMask() const
     {
         return (hasMisc() ? LootCategory_Misc : 0u) |
                (hasTemplate() ? LootCategory_Template : 0u) |
-               (hasDisc() ? LootCategory_Disc : 0u);
+               (hasDisc() ? LootCategory_Disc : 0u) |
+               (hasSherd() ? LootCategory_Sherd : 0u);
     }
 };
 

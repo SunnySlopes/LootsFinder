@@ -8,7 +8,7 @@ class Structures {
     std::unique_ptr<Impl> impl_;
 
   public:
-    Structures(uint64_t seed, int generation);
+    Structures(uint64_t seed, int generation, int mc = 0);
     ~Structures();
     bool trial_written(int x, int y, int z);
     double beard(int x, int y, int z);
