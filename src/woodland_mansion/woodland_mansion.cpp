@@ -12,6 +12,7 @@
 
 #include "loots/rng.h"
 #include "loots/transform.h"
+#include "loots/worldgen.h"
 #include "pieces_c.h"
 
 // Generated vanilla data.  The chest layout table is gitignored (local
@@ -769,6 +770,48 @@ private:
     std::map<std::pair<int, int>, PostProcessRandom> postRngs_;
 };
 
+bool mansionHeightOk(int mc, uint64_t seed, int x, int z, int *outRotation)
+{
+    // Pre-1.18 mansions did not use the Y>=60 5×5 gate.
+    if (mc < 22) {
+        if (outRotation) *outRotation = 0;
+        return true;
+    }
+    const int chunkX = x >> 4;
+    const int chunkZ = z >> 4;
+    const int blockX = chunkX * 16 + 7;
+    const int blockZ = chunkZ * 16 + 7;
+    LegacyRandom random(largeFeatureSeedValue(mc, seed, chunkX, chunkZ));
+    int rotation = random.nextInt(4);
+#ifndef NDEBUG
+    if (const char *forced = std::getenv("LOOTS_MANSION_ROT")) rotation = std::atoi(forced) & 3;
+#endif
+    if (outRotation) *outRotation = rotation;
+
+    int offsetX = 5;
+    int offsetZ = 5;
+    if (rotation == 1) offsetX = -5; // CLOCKWISE_90
+    else if (rotation == 2) {
+        offsetX = -5;
+        offsetZ = -5;
+    } // CLOCKWISE_180
+    else if (rotation == 3) offsetZ = -5; // COUNTERCLOCKWISE_90
+
+    // Structure.getLowestY(minX, minZ, sizeX, sizeZ) — size may be negative.
+    const int corners[4][2] = {
+        {blockX, blockZ},
+        {blockX, blockZ + offsetZ},
+        {blockX + offsetX, blockZ},
+        {blockX + offsetX, blockZ + offsetZ},
+    };
+    int lowest = 0x7fffffff;
+    for (const auto &c : corners) {
+        const int occupied = worldSurfaceHeight(mc, seed, c[0], c[1]) - 1;
+        if (occupied < lowest) lowest = occupied;
+    }
+    return lowest >= 60;
+}
+
 bool generateMansion(int mc, uint64_t seed, int x, int z, StructureLoot &out)
 {
     const int chunkX = x >> 4;
@@ -776,13 +819,22 @@ bool generateMansion(int mc, uint64_t seed, int x, int z, StructureLoot &out)
     const int originX = chunkX * 16 + 7;
     const int originZ = chunkZ * 16 + 7;
 
+    int rotation = 0;
+    if (!mansionHeightOk(mc, seed, x, z, &rotation)) {
+        out.exists = false;
+        return false;
+    }
+
     // Structure.GenerationContext.makeRandom: setLargeFeatureSeed(levelSeed,
-    // chunkX, chunkZ).  Then WoodlandMansionStructure.findGenerationPoint uses
-    // the first draw for Rotation.getRandom BEFORE MansionGrid is constructed.
+    // chunkX, chunkZ). Rotation already consumed inside mansionHeightOk — replay
+    // the same seed and discard that draw before MansionGrid.
     LegacyRandom random(largeFeatureSeedValue(mc, seed, chunkX, chunkZ));
-    int rotation = random.nextInt(4);
+    (void)random.nextInt(4);
 #ifndef NDEBUG
-    if (const char *forced = std::getenv("LOOTS_MANSION_ROT")) rotation = std::atoi(forced) & 3;
+    if (const char *forced = std::getenv("LOOTS_MANSION_ROT")) {
+        (void)forced;
+        // rotation forced only for height; grid still uses the real stream.
+    }
 #endif
 
     MansionGrid grid(random);
@@ -793,6 +845,11 @@ bool generateMansion(int mc, uint64_t seed, int x, int z, StructureLoot &out)
 }
 
 } // namespace
+
+bool woodlandMansionCanPlace(int mc, uint64_t seed, int x, int z)
+{
+    return mansionHeightOk(mc, seed, x, z, nullptr);
+}
 
 bool woodlandMansionLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out)
 {
@@ -809,12 +866,46 @@ bool woodlandMansionLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out
 
 namespace loots {
 
+bool woodlandMansionCanPlace(int mc, uint64_t seed, int x, int z)
+{
+    // Without mansion data we can still apply the height gate.
+    if (mc < 22) return true;
+    const int chunkX = x >> 4;
+    const int chunkZ = z >> 4;
+    const int blockX = chunkX * 16 + 7;
+    const int blockZ = chunkZ * 16 + 7;
+    LegacyRandom random(largeFeatureSeedValue(mc, seed, chunkX, chunkZ));
+    const int rotation = random.nextInt(4);
+    int offsetX = 5, offsetZ = 5;
+    if (rotation == 1) offsetX = -5;
+    else if (rotation == 2) {
+        offsetX = -5;
+        offsetZ = -5;
+    } else if (rotation == 3) offsetZ = -5;
+    const int corners[4][2] = {
+        {blockX, blockZ},
+        {blockX, blockZ + offsetZ},
+        {blockX + offsetX, blockZ},
+        {blockX + offsetX, blockZ + offsetZ},
+    };
+    int lowest = 0x7fffffff;
+    for (const auto &c : corners) {
+        const int occupied = worldSurfaceHeight(mc, seed, c[0], c[1]) - 1;
+        if (occupied < lowest) lowest = occupied;
+    }
+    return lowest >= 60;
+}
+
 bool woodlandMansionLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out)
 {
     out = StructureLoot{};
     out.x = x;
     out.z = z;
     out.kind = "woodland_mansion";
+    if (!woodlandMansionCanPlace(mc, seed, x, z)) {
+        out.exists = false;
+        return false;
+    }
     (void)mc;
     (void)seed;
     return false;

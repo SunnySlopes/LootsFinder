@@ -23,9 +23,15 @@ struct TableData {
     const data::Condition *conditions;
 };
 
-bool tableNameMatches(const char *tableName, const char *full, const char *shortName)
+/** Exact resource-path match (`chests/...` / `archaeology/...`). */
+bool tableNameExact(const char *query, const char *full)
 {
-    if (std::strcmp(full, tableName) == 0) return true;
+    return std::strcmp(full, query) == 0;
+}
+
+/** Short-name match for legacy callers that pass only `desert_pyramid`. */
+bool tableNameShort(const char *shortName, const char *full)
+{
     const char *slash = std::strrchr(full, '/');
     const char *tableShort = slash ? slash + 1 : full;
     return std::strcmp(tableShort, shortName) == 0;
@@ -36,23 +42,49 @@ TableData findTable(const char *name, int mc)
     if (!name || !name[0]) return {};
     const char *slash = std::strrchr(name, '/');
     const char *shortName = slash ? slash + 1 : name;
+    // Full paths must match exactly so archaeology/desert_pyramid never hits
+    // chests/desert_pyramid through the short-name fallback.
+    const bool allowShort = slash == nullptr;
+
     if (mc == 35 || mc < 0) {
         for (const auto &table : data263::kTables) {
-            if (tableNameMatches(name, table.name, shortName))
+            if (tableNameExact(name, table.name))
                 return {&table, data263::kPools, data263::kEntries, data263::kOps,
                         data263::kConditions};
         }
+        if (allowShort) {
+            for (const auto &table : data263::kTables) {
+                if (tableNameShort(shortName, table.name))
+                    return {&table, data263::kPools, data263::kEntries, data263::kOps,
+                            data263::kConditions};
+            }
+        }
     }
     for (const auto &table : data_stronghold::kTables) {
-        if (!tableNameMatches(name, table.name, shortName)) continue;
+        if (!tableNameExact(name, table.name)) continue;
         if (mc < 0 || (mc >= table.mcLo && mc <= table.mcHi))
             return {&table, data_stronghold::kPools, data_stronghold::kEntries,
                     data_stronghold::kOps, nullptr};
     }
+    if (allowShort) {
+        for (const auto &table : data_stronghold::kTables) {
+            if (!tableNameShort(shortName, table.name)) continue;
+            if (mc < 0 || (mc >= table.mcLo && mc <= table.mcHi))
+                return {&table, data_stronghold::kPools, data_stronghold::kEntries,
+                        data_stronghold::kOps, nullptr};
+        }
+    }
     for (const auto &table : data::kTables) {
-        if (!tableNameMatches(name, table.name, shortName)) continue;
+        if (!tableNameExact(name, table.name)) continue;
         if (mc < 0 || (mc >= table.mcLo && mc <= table.mcHi))
             return {&table, data::kPools, data::kEntries, data::kOps, data::kConditions};
+    }
+    if (allowShort) {
+        for (const auto &table : data::kTables) {
+            if (!tableNameShort(shortName, table.name)) continue;
+            if (mc < 0 || (mc >= table.mcLo && mc <= table.mcHi))
+                return {&table, data::kPools, data::kEntries, data::kOps, data::kConditions};
+        }
     }
     // Do not silently use another version's table; a missing band means the
     // structure/feature is not available in this version.
@@ -126,6 +158,12 @@ uint32_t sherdBitOf(data::ItemKind kind)
     case data::ItemKind::sherd_explorer: return LootSherd_Explorer;
     case data::ItemKind::sherd_mourner: return LootSherd_Mourner;
     case data::ItemKind::sherd_plenty: return LootSherd_Plenty;
+    case data::ItemKind::sherd_archer: return LootSherd_Archer;
+    case data::ItemKind::sherd_miner: return LootSherd_Miner;
+    case data::ItemKind::sherd_prize: return LootSherd_Prize;
+    case data::ItemKind::sherd_skull: return LootSherd_Skull;
+    case data::ItemKind::sherd_arms_up: return LootSherd_ArmsUp;
+    case data::ItemKind::sherd_brewer: return LootSherd_Brewer;
     default: return 0;
     }
 }

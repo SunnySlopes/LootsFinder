@@ -72,10 +72,10 @@ enum LootMiscBits : uint32_t {
 /**
  * Pottery sherds, bit flags for `ChestReward::sherdKinds`.
  *
- * Bits 0-6 are archaeology/trail_ruins_rare, 7-9 trail chambers decorated pots
- * (template mapping, not the loot table), 10-12 ocean_ruin_warm sherds and
- * 13-16 ocean_ruin_cold sherds. Bits 17-22 are reserved for the desert pyramid
- * / desert well archaeology that this build does not evaluate yet.
+ * Bits 0-6 are archaeology/trail_ruins_rare, 7-9 trial chambers decorated pots
+ * (template mapping, not the loot table), 10-12 ocean_ruin_warm sherds,
+ * 13-16 ocean_ruin_cold sherds, 17-20 desert_pyramid archaeology, and
+ * 21-22 desert_well archaeology.
  */
 enum LootSherdBits : uint32_t {
     LootSherd_Burn = 1u << 0,
@@ -95,6 +95,12 @@ enum LootSherdBits : uint32_t {
     LootSherd_Explorer = 1u << 14,
     LootSherd_Mourner = 1u << 15,
     LootSherd_Plenty = 1u << 16,
+    LootSherd_Archer = 1u << 17,
+    LootSherd_Miner = 1u << 18,
+    LootSherd_Prize = 1u << 19,
+    LootSherd_Skull = 1u << 20,
+    LootSherd_ArmsUp = 1u << 21,
+    LootSherd_Brewer = 1u << 22,
 };
 
 /** UI category bits, see `ChestReward::categoryMask()`. */
@@ -124,7 +130,7 @@ struct ChestReward {
     uint32_t discKinds = 0;
     /** Banner / sniffer egg / golden apple, see LootMiscBits. */
     uint32_t miscKinds = 0;
-    /** Pottery sherds, see LootSherdBits (bits 17-22 reserved). */
+    /** Pottery sherds, see LootSherdBits. */
     uint32_t sherdKinds = 0;
     /** Total number of `disc_fragment_5` items in this container. */
     uint16_t discFragments = 0;

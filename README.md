@@ -194,7 +194,10 @@ The module owns the 26.3 ancient-city layout and exact terrain queries, so
 | abandoned mineshaft layer | done (1.18.2-26.3) | done (26.3) |
 | trial-chamber decorated pots | done (positions/templates) | done (positions) |
 | 17 pottery sherds | done | done |
-| desert pyramid / desert well sherds (6) | not implemented | n/a |
+| desert pyramid sherds (4) | done (1.20+) | done |
+| desert well presence (terrain support) | done (approx) | done; solid/volume gate; map shows translucent + note |
+| woodland mansion Y≥60 (5×5 box) | done (approx) | done; map shows translucent + note |
+| desert well sherds (2) | done (1.20+) | done; ≤26.2 `DesertWellFeature`, 26.3 OverlayFeature + TemplateFeature |
 
 **Shared jigsaw implementation**: bastion remnants, trail ruins and
 pillager-outpost allay cages share the exact `JigsawPlacement` port in
@@ -212,6 +215,9 @@ version.
 
 ## Known limitations
 
+- **Desert wells**: presence uses approximate `worldSolid` / volume support (not
+  exact `Blocks.SAND`); sherds use `worldSurfaceHeight` for Y and WorldgenRandom
+  decoration replay (salt 40002) for offsets / `AppendLoot` seeds.
 - **Abandoned mineshafts (Bounce)**: the result depends on chunk generation
   order because step 1-3 features (monster rooms, lava lakes, geodes) write
   blocks into neighbouring chunks. Replaying in the oracle's ascending
@@ -229,10 +235,6 @@ version.
   versions are covered by real-jar fixtures (`loots-multiversiontest`) and the
   golden loot-table oracle.
 
-## TODO
-
-1. Desert pyramid (4) and desert well (2) pottery sherds (6 total; the other 17
-   are implemented).
 
 ## Jigsaw accuracy
 

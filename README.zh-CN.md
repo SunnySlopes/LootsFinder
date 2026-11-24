@@ -202,7 +202,10 @@ python tools/verify_py/verify_loot_tables.py
 | 废弃矿井箱子矿车 | 已完成 | 已完成 |
 | 试炼密室饰纹陶罐 | 已完成（位置/模板） | 已完成（位置） |
 | 17 种陶片 | 已完成 | 已完成 |
-| 沙漠神殿/水井陶片（6 种） | 未实现 | 不适用 |
+| 沙漠神殿陶片（4 种） | 已完成 | 已完成 |
+| 沙漠水井存在性（地表支撑） | 已完成（近似） | 已完成；地图半透明 + 提示 |
+| 林地府邸 Y≥60（5×5 框） | 已完成（近似） | 已完成；地图半透明 + 提示 |
+| 沙漠水井陶片（2 种） | 已完成 | 已完成；≤26.2 `DesertWellFeature`，26.3 OverlayFeature + TemplateFeature |
 
 **共用 jigsaw 实现**：堡垒遗迹、古迹废墟、掠夺者前哨站悦灵笼共用
 `src/jigsaw/` 的精确 `JigsawPlacement`（1.20.1–26.3；前哨站悦灵另覆盖
@@ -217,6 +220,9 @@ oracle 覆盖：`tools/generate_golden.py` 读取 1.18.2–26.3 各版本 jar，
 
 ## 已知限制
 
+- **沙漠水井**：存在性用近似 `worldSolid`/体积支撑（非精确 `Blocks.SAND`）；
+  陶片用 `worldSurfaceHeight` 取 Y，并以 WorldgenRandom（salt 40002）回放
+  偏移与 `AppendLoot` seed。
 - **废弃矿井（Bounce）**：结果依赖区块生成顺序——step 1–3 的 feature
   （怪物房、岩浆湖、紫水晶洞等）会把方块写进相邻区块；按 oracle 的
   `ChunkPos.pack` 升序回放后，少数与怪物房重叠的矿井仍可能差 1–2 个箱子。
@@ -230,10 +236,6 @@ oracle 覆盖：`tools/generate_golden.py` 读取 1.18.2–26.3 各版本 jar，
   1 格或位置不同。
 - **版本验证**：Java 世界生成 oracle 只能运行 26.3；更早版本由真实 jar
   fixture（`loots-multiversiontest`）和多版本 golden 战利品表 oracle 覆盖。
-
-## TODO
-
-1. 沙漠神殿 4 种 + 沙漠水井 2 种陶片（共 6 种；其余 17 种已实现）。
 
 ## Jigsaw 结构精度
 

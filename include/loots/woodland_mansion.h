@@ -31,11 +31,18 @@
 namespace loots {
 
 /**
+ * WoodlandMansionStructure.findGenerationPoint height gate (1.18+):
+ * lowest WORLD_SURFACE_WG first-occupied height in the rotation-dependent 5×5
+ * box must be >= 60. Cubiomes biome checks alone miss this.
+ */
+bool woodlandMansionCanPlace(int mc, uint64_t seed, int x, int z);
+
+/**
  * Woodland mansion chests at the cubiomes structure position (x, z), which is
  * the chunk minimum block (the structure's own start is chunk*16 + 7).
  *
- * Returns false only when the generated template/chest data is unavailable at
- * compile time (the module is then inert, like the other data-backed features).
+ * Returns false when the height gate rejects the site, or when mansion template
+ * data is unavailable at compile time.
  */
 bool woodlandMansionLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out);
 

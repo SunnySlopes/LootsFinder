@@ -54,6 +54,7 @@ void usage()
         "  loots-cli mineshaft    --mc <id> --seed <n> --x <n> --z <n>\n"
         "  loots-cli trial-pots   --mc <id> --seed <n> --x <n> --z <n>\n"
         "  loots-cli desert-pyramid --mc <id> --seed <n> --x <n> --z <n>\n"
+        "  loots-cli desert-well    --mc <id> --seed <n> --x <n> --z <n>\n"
         "  loots-cli jungle-temple  --mc <id> --seed <n> --x <n> --z <n>\n"
         "  loots-cli jigsaw-debug --kind bastion|trail-ruins|outpost --seed <n> --x <n> --z <n>\n"
         "\n"
@@ -498,6 +499,21 @@ int cmdDesert(const std::vector<std::string> &flags)
     return printStructureLoot(sl);
 }
 
+int cmdDesertWell(const std::vector<std::string> &flags)
+{
+    long long mc = 0, seed = 0, x = 0, z = 0;
+    if (!flagValue(flags, "mc", &mc) || !flagValue(flags, "seed", &seed) ||
+        !flagValue(flags, "x", &x) || !flagValue(flags, "z", &z)) {
+        std::fputs("desert-well needs --mc --seed --x --z\n", stderr);
+        return 2;
+    }
+    loots::StructureLoot sl{};
+    loots::desertWellLoot(static_cast<int>(mc), static_cast<uint64_t>(seed),
+                          static_cast<int>(x), static_cast<int>(z), sl);
+    sl.evaluate(static_cast<int>(mc));
+    return printStructureLoot(sl, "exact");
+}
+
 int cmdJungle(const std::vector<std::string> &flags)
 {
     long long mc = 0, seed = 0, x = 0, z = 0;
@@ -718,6 +734,7 @@ int main(int argc, char **argv)
     }
     if (cmd == "shipwreck") return cmdShipwreck(flags);
     if (cmd == "desert-pyramid") return cmdDesert(flags);
+    if (cmd == "desert-well") return cmdDesertWell(flags);
     if (cmd == "jungle-temple") return cmdJungle(flags);
     if (cmd == "jigsaw") return cmdJigsaw(flags);
     if (cmd == "jigsaw-debug") return cmdJigsawDebug(flags);

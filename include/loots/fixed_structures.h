@@ -19,8 +19,30 @@
 
 namespace loots {
 
-/** Desert pyramid: 4 chests, `chests/desert_pyramid`. */
+/**
+ * SinglePieceStructure.findGenerationPoint sea-level gate: lowest WORLD_SURFACE_WG
+ * first-occupied height among the four corners of [x, x+sizeX]×[z, z+sizeZ] must
+ * be >= sea level (63). Cubiomes placement alone misses this and produces false
+ * desert pyramids / jungle temples.
+ */
+bool singlePieceAboveSea(int mc, uint64_t seed, int x, int z, int sizeX, int sizeZ);
+
+/**
+ * Desert-well placement / feature support check (approximate terrain).
+ * Origin is WORLD_SURFACE first-occupied at (x,z). Rejects when the surface
+ * column is not solid or the 5×5×2 support volume under it fails:
+ *   - ≤26.2 DesertWellFeature: each column needs solid at y-1 or y-2
+ *   - 26.3+ placement volumeMatch: every cell in [−2..2]×[−2..−1]×[−2..2] solid
+ * Writes the approximated surface Y when non-null. Cubiomes only checks rarity
+ * + desert biome, so this filters coastal / cliff false positives.
+ */
+bool desertWellCanPlace(int mc, uint64_t seed, int x, int z, int *surfaceY);
+
+/** Desert pyramid: 4 chests + archaeology suspicious sand (mc >= 25). */
 bool desertPyramidLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out);
+
+/** Desert well: presence + archaeology suspicious sand (mc >= 25). */
+bool desertWellLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out);
 
 /** Jungle temple: 2 chests, `chests/jungle_temple`. */
 bool jungleTempleLoot(int mc, uint64_t seed, int x, int z, StructureLoot &out);
