@@ -40,6 +40,10 @@ bool tableNameShort(const char *shortName, const char *full)
 TableData findTable(const char *name, int mc)
 {
     if (!name || !name[0]) return {};
+    // Jigsaw chest specs use the namespaced id (`minecraft:chests/ancient_city`);
+    // generated loot tables are stored without the namespace (`chests/ancient_city`).
+    // Strip it once so ancient-city / bastion template chests resolve.
+    if (std::strncmp(name, "minecraft:", 10) == 0) name += 10;
     const char *slash = std::strrchr(name, '/');
     const char *shortName = slash ? slash + 1 : name;
     // Full paths must match exactly so archaeology/desert_pyramid never hits
