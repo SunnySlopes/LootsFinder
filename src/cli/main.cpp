@@ -307,9 +307,10 @@ int printStructureLoot(const loots::StructureLoot &sl, const char *suspiciousSta
     for (size_t i = 0; i < sl.suspicious.size(); i++) {
         const loots::StructureChest &c = sl.suspicious[i];
         std::printf("    { \"x\": %d, \"y\": %d, \"z\": %d, \"template\": \"%s\", \"table\": \"%s\", "
-                    "\"lootSeed\": %lld, \"evaluated\": %s, \"approximate\": true, \"trimKinds\": ",
+                    "\"lootSeed\": %lld, \"evaluated\": %s, \"approximate\": %s, \"snifferEgg\": %s, \"trimKinds\": ",
                     c.x, c.y, c.z, c.templateName.c_str(), c.lootTable.c_str(),
-                    (long long) c.lootSeed, jsonBool(c.reward.evaluated));
+                    (long long) c.lootSeed, jsonBool(c.reward.evaluated),
+                    jsonBool(c.approximate), jsonBool(c.reward.snifferEgg));
         printTrimKinds(c.reward.trimKinds);
         std::printf(",\"sherdKinds\": %u, \"piglinBanner\": %s }%s\n",
                     c.reward.sherdKinds,

@@ -251,12 +251,32 @@ void collectSuspicious(int mc, uint64_t seed, const Piece &p, StructureLoot &out
         const int wy = ty + b.y;
         const int wz = p.z + tz;
         LegacyRandom rng(static_cast<uint64_t>(mthGetSeed(wx, wy, wz)));
-        // BlockRotProcessor keeps a block when it is not rolled for rot:
-        // `!(random.nextFloat() <= integrity)`.
-        if (rng.nextFloat() <= integrity) continue;
+        // BlockRotProcessor keeps a block when nextFloat() <= integrity and
+        // removes it when nextFloat() > integrity. CappedProcessor only sees
+        // the kept list (see jigsaw::blockRotSurvives).
+        if (rng.nextFloat() > integrity) continue;
         survivors.push_back({wx, wy, wz, b.kind});
     }
     if (survivors.empty()) return;
+
+    // Support for FallingBlock.isFree: terrain solid OR another BlockRot-kept
+    // template block below (sand-on-sand inside the piece must not be dropped).
+    std::vector<int64_t> survivorKeys;
+    survivorKeys.reserve(survivors.size());
+    auto packKey = [](int x, int y, int z) -> int64_t {
+        return (static_cast<int64_t>(x) & 0x3fffff) |
+               ((static_cast<int64_t>(z) & 0x3fffff) << 22) |
+               ((static_cast<int64_t>(y) & 0xfffff) << 44);
+    };
+    for (const Survived &s : survivors) survivorKeys.push_back(packKey(s.x, s.y, s.z));
+    std::sort(survivorKeys.begin(), survivorKeys.end());
+    auto hasSurvivor = [&](int x, int y, int z) {
+        const int64_t key = packKey(x, y, z);
+        return std::binary_search(survivorKeys.begin(), survivorKeys.end(), key);
+    };
+    auto hasSupport = [&](int x, int y, int z) {
+        return worldSolid(mc, seed, x, y - 1, z) || hasSurvivor(x, y - 1, z);
+    };
 
     std::vector<uint16_t> order(survivors.size());
     std::iota(order.begin(), order.end(), 0);
@@ -272,7 +292,7 @@ void collectSuspicious(int mc, uint64_t seed, const Piece &p, StructureLoot &out
         const Survived &s = survivors[index];
         if (s.kind != suspiciousKind) continue;
         replaced++;
-        if (!worldSolid(mc, seed, s.x, s.y - 1, s.z)) {
+        if (!hasSupport(s.x, s.y, s.z)) {
             if (replaced >= 5) break;
             continue;
         }
